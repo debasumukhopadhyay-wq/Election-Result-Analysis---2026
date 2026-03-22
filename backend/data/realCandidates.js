@@ -187,6 +187,7 @@ const REAL_CANDIDATES = {
   "Domjur":                 { TMC: "Tapas Maity",             BJP: "Gobinda Hazra" },
   "Uttarpara":              { TMC: "Sirsanya Bandopadhyay" },
   "Sreerampur":             { TMC: "Tanmoy Ghosh",            BJP: "Bhaskar Bhattacharya" },
+  "Serampore":              { TMC: "Kallol Kali Ghosh",       BJP: "Kaberi Ghosh" },
   "Champdani":              { TMC: "Arindam Guin",            BJP: "Dilip Singh",           CPM: "Advocate Chandranath Banerjee" },
   "Chandannagar":           { TMC: "Indranil Sen" },
   "Chunchura":              { TMC: "Debangshu Bhattacharya" },

@@ -75,7 +75,9 @@ router.post('/', predictLimiter, predictValidation, handleValidationErrors, asyn
       ...prediction,
       boothSimulation,
       aiReasoning,
-      confidenceScore: finalConfidence
+      confidenceScore: finalConfidence,
+      demographics: demData,
+      historicalData: histData
     });
   } catch (error) {
     next(error);

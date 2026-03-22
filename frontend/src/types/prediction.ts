@@ -101,6 +101,35 @@ export interface ContextSignal {
   factors: string[];
 }
 
+export interface DemographicsData {
+  religion: { hindu: number; muslim: number; christian: number; other: number };
+  caste: { sc: number; st: number; obc: number; general: number };
+  urbanRural: { urban: number; rural: number };
+  ageProfile: { below30: number; age30to50: number; above50: number };
+  literacyRate: number;
+  primaryOccupation: string;
+}
+
+export interface HistoricalPartyResult {
+  party: string;
+  voteShare: number;
+  votes: number;
+  candidate: string;
+  winner: boolean;
+}
+
+export interface HistoricalElection {
+  year: number;
+  results: HistoricalPartyResult[];
+  turnout: number;
+  winMargin: number;
+}
+
+export interface HistoricalData {
+  elections: HistoricalElection[];
+  swingTrend: Record<string, number>;
+}
+
 export interface PredictionResult {
   constituencyId: string;
   constituencyName: string;
@@ -113,6 +142,8 @@ export interface PredictionResult {
   explainabilityScore: number;
   generatedAt: string;
   contextSignals?: ContextSignal[];
+  demographics?: DemographicsData;
+  historicalData?: HistoricalData;
 }
 
 export interface PredictRequest {
