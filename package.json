@@ -1,0 +1,16 @@
+{
+  "name": "wb-election-prediction",
+  "version": "1.0.0",
+  "private": true,
+  "description": "West Bengal Assembly Election 2026 Prediction System",
+  "scripts": {
+    "install:all": "npm install && npm install --prefix backend && npm install --prefix frontend",
+    "start": "concurrently \"npm start --prefix backend\" \"npm run dev --prefix frontend\"",
+    "start:backend": "npm start --prefix backend",
+    "start:frontend": "npm run dev --prefix frontend",
+    "build": "npm run build --prefix frontend"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

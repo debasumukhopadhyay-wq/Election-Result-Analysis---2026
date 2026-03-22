@@ -1,0 +1,239 @@
+# Specification Document
+
+## West Bengal Assembly Election 2026 Prediction System
+
+---
+
+## 1. Overview
+
+This document defines the technical and functional specification for a web-based application that predicts election results for all 294 Assembly seats in the West Bengal Assembly Election 2026.
+
+The system will use a weighted algorithmic model powered by structured data inputs and Large Language Model reasoning (Anthropic Claude Sonnet / Opus 4.6) for qualitative analysis.
+
+---
+
+## 2. Objectives
+
+* Predict constituency-level election outcomes
+* Provide candidate-wise scoring and probability of winning
+* Generate explainable reports
+* Allow booth-level drill-down analysis
+* Enable full state election simulation
+
+---
+
+## 3. Technology Stack
+
+### Frontend
+
+* React.js (with TypeScript)
+* UI Framework: Material UI / Tailwind CSS
+* State Management: Redux Toolkit / Zustand
+* Charts: Recharts / D3.js
+
+### Backend
+
+* Node.js (Express.js)
+* Data Processing Layer: Python microservices (optional)
+* Database: PostgreSQL + Redis cache
+
+### AI Layer
+
+* Anthropic Claude Sonnet or Opus 4.6 (for reasoning and report generation)
+* No direct Claude API integration required (pluggable design)
+
+---
+
+## 4. Core Features
+
+### 4.1 Input Interface
+
+User inputs:
+
+* Assembly Constituency Name
+* Optional: Candidate-specific adjustments
+* Optional: Free-text contextual input
+
+---
+
+### 4.2 Data Sources
+
+#### Structured Data
+
+* Last 5 election results per constituency
+* Booth-level voting patterns
+* Party vote share trends
+
+#### Demographic Data
+
+* Religion distribution
+* Caste composition
+* Urban vs Rural ratio
+
+#### Candidate Data
+
+* Education level
+* Criminal record
+* Oratory skill (scored)
+* Local vs outsider
+* Popularity index
+
+#### Political Network Data
+
+* Block President alignment
+* Panchayat Pradhan alignment
+* Local cadre strength
+
+#### Dynamic Inputs
+
+* Recent incidents
+* Alliances
+* Party leadership popularity
+
+#### External Sources
+
+* News scraping (Anandabazar, ABP Ananda, etc.)
+* Candidate lists from web
+
+---
+
+## 5. Prediction Algorithm
+
+### 5.1 Weighted Scoring Model
+
+Each candidate is assigned a score based on:
+
+| Factor                     | Weight Range |
+| -------------------------- | ------------ |
+| Demography Match           | 15-25%       |
+| Historical Results         | 20-30%       |
+| Candidate Quality          | 15-20%       |
+| Local Leadership Alignment | 10-15%       |
+| Recent Events Impact       | 5-15%        |
+| Party Popularity           | 10-20%       |
+| Alliances                  | 5-10%        |
+
+Final Score = Weighted Sum of All Factors
+
+---
+
+### 5.2 Booth-Level Simulation
+
+* Each booth assigned micro-score
+* Aggregation to constituency result
+* Swing simulation based on turnout changes
+
+---
+
+### 5.3 AI Reasoning Layer
+
+Claude Sonnet / Opus 4.6 used for:
+
+* Interpreting news impact
+* Candidate qualitative scoring
+* Generating natural language reports
+
+---
+
+## 6. Output Features
+
+### 6.1 Constituency Report
+
+* Winning candidate prediction
+* Vote share percentage
+* Confidence score
+* Key influencing factors
+
+### 6.2 Candidate View
+
+* Strengths & weaknesses
+* What needs to improve to win
+* Margin improvement strategy
+
+### 6.3 Booth-Level Insights
+
+* Heatmaps
+* Swing-sensitive booths
+
+### 6.4 Statewide Dashboard
+
+* Seat projection (294 seats)
+* Party-wise tally
+* Majority probability
+
+---
+
+## 7. Accuracy & Feedback System
+
+* Accuracy score (model confidence)
+* Explainability score
+* Missing data indicators
+* User-provided additional context input
+
+---
+
+## 8. UI/UX Requirements
+
+### Dashboard
+
+* Clean professional interface
+* Constituency selector
+* Filters (district, party)
+
+### Visualization
+
+* Charts for vote share
+* Booth heatmaps
+* Swing graphs
+
+### Interaction
+
+* Real-time prediction updates
+* Editable assumptions
+
+---
+
+## 9. API Design (Backend)
+
+### Endpoints
+
+* GET /constituencies
+* POST /predict
+* GET /candidate/:id
+* GET /state-summary
+
+---
+
+## 10. Scalability Considerations
+
+* Microservices architecture
+* Caching for repeated queries
+* Async processing for AI tasks
+
+---
+
+## 11. Security
+
+* Input validation
+* Rate limiting
+* Secure APIs
+
+---
+
+## 12. Future Enhancements
+
+* Real-time election day updates
+* Mobile app
+* Advanced ML models
+
+---
+
+## 13. Deliverables
+
+* Full-stack application
+* Documentation
+* Model configuration
+
+---
+
+End of Document
