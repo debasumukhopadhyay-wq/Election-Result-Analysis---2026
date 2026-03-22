@@ -1,0 +1,29 @@
+services:
+  # Backend API — Node.js web service
+  - type: web
+    name: wb-election-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ANTHROPIC_API_KEY
+        sync: false   # set manually in Render dashboard
+
+  # Frontend — static site served via Render CDN
+  - type: web
+    name: wb-election-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: no-cache
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
