@@ -100,8 +100,7 @@ export default function ImprovementReport({ constituencyId, party, candidateName
     setLoading(true);
     setReport(null);
     setError(null);
-    const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-    fetch(`${apiBase}/api/improve`, {
+    fetch('/api/improve', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ constituencyId, party, candidateName, contextText })

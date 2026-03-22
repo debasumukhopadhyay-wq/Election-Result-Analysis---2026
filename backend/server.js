@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 
 const { generalLimiter } = require('./middleware/rateLimiter');
 const errorHandler = require('./middleware/errorHandler');
@@ -52,9 +53,16 @@ app.use('/api/candidates', candidateRouter);
 app.use('/api/state-summary', stateSummaryRouter);
 app.use('/api/improve', improveRouter);
 
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({ error: `Route ${req.path} not found` });
+// Serve React frontend (built files) in production
+const frontendDist = path.join(__dirname, 'public');
+app.use(express.static(frontendDist));
+
+// React Router catch-all — serve index.html for any non-API route
+app.get('*', (req, res) => {
+  const indexPath = path.join(frontendDist, 'index.html');
+  res.sendFile(indexPath, (err) => {
+    if (err) res.status(404).json({ error: `Route ${req.path} not found` });
+  });
 });
 
 // Error handler
