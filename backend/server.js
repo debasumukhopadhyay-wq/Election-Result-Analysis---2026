@@ -14,9 +14,20 @@ const { buildCache } = require('./services/predictionCache');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Middleware
+// Middleware — allow localhost in dev, any Render/custom domain in prod
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:5173',
+  /\.onrender\.com$/,   // all *.onrender.com subdomains
+];
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:5173'],
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true); // non-browser / server-to-server
+    const allowed = allowedOrigins.some(o =>
+      typeof o === 'string' ? o === origin : o.test(origin)
+    );
+    callback(allowed ? null : new Error('CORS not allowed'), allowed);
+  },
   credentials: true
 }));
 app.use(express.json({ limit: '10mb' }));
@@ -49,7 +60,7 @@ app.use((req, res) => {
 // Error handler
 app.use(errorHandler);
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`🗳️  WB Election 2026 Prediction API running on port ${PORT}`);
   console.log(`📊  AI reasoning: ${process.env.ANTHROPIC_API_KEY ? 'enabled (Claude)' : 'fallback mode (no API key)'}`);
   console.log(`🔗  Health check: http://localhost:${PORT}/health`);
