@@ -1,9 +1,8 @@
 services:
-  # Single web service — backend serves the built React frontend too
   - type: web
     name: wb-election-2026
     runtime: node
-    buildCommand: cd frontend && npm install && npm run build && mkdir -p ../backend/public && cp -r dist/* ../backend/public/ && cd ../backend && npm install
+    buildCommand: cd frontend && npm install --include=dev && npm run build && cd .. && mkdir -p backend/public && cp -r frontend/dist/* backend/public/ && cd backend && npm install
     startCommand: node backend/server.js
     envVars:
       - key: NODE_ENV
