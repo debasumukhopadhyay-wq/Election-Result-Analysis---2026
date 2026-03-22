@@ -455,13 +455,14 @@ const CONSTITUENCY_INDEX = [
 
 // ─────────────────────────────────────────────────────────────────────────────
 // REAL CANDIDATE OVERRIDES — 2026 WB Assembly Election
-// Real names are now loaded from realCandidates.js (keyed by constituency number).
-// The legacy string-keyed map below is kept for any remaining manual overrides.
+// Loaded from realCandidates.js, keyed by constituency NUMBER (1–294).
+// This avoids all name-spelling mismatches — numbers are the authoritative ID.
 // ─────────────────────────────────────────────────────────────────────────────
-const { REAL_CANDIDATES: REAL_CANDIDATES_BY_NAME } = require('./realCandidates');
+const { REAL_CANDIDATES } = require('./realCandidates');
 
-const REAL_CANDIDATES = {
-  // TMC — 267 constituencies matched from official 2026 announcement
+const _DELETED_INLINE_DICT_SENTINEL = {
+  // Removed — data now lives in realCandidates.js (number-keyed).
+  // This object is intentionally empty; delete it once confirmed working.
   "WB-008-TMC": { name: "Paresh Chandra Adhikary" },
   "WB-007-TMC": { name: "Sablu Barman" },
   "WB-001-TMC": { name: "Partha Pratim Roy" },
@@ -973,27 +974,25 @@ const REAL_CANDIDATES = {
 };
 
 // Generate all candidates
+// Lookup is by constituency NUMBER (num) — immune to name spelling changes.
+const LEFT_FRONT_PARTIES = ['CPM', 'RSP', 'CPI', 'AIFB'];
+
 const allCandidates = [];
-CONSTITUENCY_INDEX.forEach(([num, , district, constName]) => {
+CONSTITUENCY_INDEX.forEach(([num, , district]) => {
   const constId = `WB-${String(num).padStart(3, "0")}`;
   const candidates = generateCandidates(constId, num, district);
-  candidates.forEach((c) => {
-    // Apply legacy string-keyed overrides first
-    const overrideKey = `${c.constituencyId}-${c.party}`;
-    if (REAL_CANDIDATES[overrideKey]) Object.assign(c, REAL_CANDIDATES[overrideKey]);
 
-    // Apply name-keyed real candidates from realCandidates.js (takes precedence over legacy map)
-    // constName is the exact constituency name string from constituencies.js
-    const realData = constName ? REAL_CANDIDATES_BY_NAME[constName] : undefined;
+  // Number-keyed real data from realCandidates.js
+  const realData = REAL_CANDIDATES[num];
+
+  candidates.forEach((c) => {
     if (realData) {
       if (realData[c.party]) {
+        // Exact party match (TMC, BJP, ISF, etc.)
         c.name = realData[c.party];
-      }
-      // Handle Left Front parties: RSP/CPI/AIFB may be stored under their own key
-      // but the generated candidate slot is CPM — check all LF parties
-      if (c.party === 'CPM') {
-        const leftParties = ['CPM', 'RSP', 'CPI', 'AIFB'];
-        for (const lp of leftParties) {
+      } else if (c.party === 'CPM') {
+        // Left Front parties share the CPM candidate slot
+        for (const lp of LEFT_FRONT_PARTIES) {
           if (realData[lp]) {
             c.name = realData[lp];
             c.leftFrontParty = lp;
@@ -1003,14 +1002,13 @@ CONSTITUENCY_INDEX.forEach(([num, , district, constName]) => {
       }
     }
 
-    // INC and IND candidates have no verified real data — mark them clearly
-    // Root cause: realCandidates.js only covers TMC, BJP, and partial Left Front (CPM/RSP/CPI/AIFB)
-    const hadRealOverride = realData && (
+    // Mark INC/IND as TBD when no verified real data exists
+    const hasRealName = realData && (
       realData[c.party] ||
-      (c.party === 'CPM' && ['CPM', 'RSP', 'CPI', 'AIFB'].some(lp => realData[lp]))
+      (c.party === 'CPM' && LEFT_FRONT_PARTIES.some(lp => realData[lp]))
     );
-    if (!hadRealOverride && (c.party === 'INC' || c.party === 'IND')) {
-      c.name = `${c.party === 'INC' ? 'INC' : 'Independent'} Candidate (TBD)`;
+    if (!hasRealName && (c.party === 'INC' || c.party === 'IND')) {
+      c.name = c.party === 'INC' ? 'INC Candidate (TBD)' : 'Independent Candidate (TBD)';
       c.nameUnverified = true;
     }
 
