@@ -17,6 +17,7 @@ import SwingGraph from '../components/booth/SwingGraph';
 import SwingRiskPanel from '../components/prediction/SwingRiskPanel';
 import DemographicsPanel from '../components/prediction/DemographicsPanel';
 import Election2021Panel from '../components/prediction/Election2021Panel';
+import PartyChangePanel from '../components/prediction/PartyChangePanel';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
 import type { ConstituencyListItem } from '../api/constituencyApi';
 
@@ -113,32 +114,38 @@ export default function ConstituencyPage() {
       {/* Results */}
       {status === 'success' && result && (
         <>
-          {/* Winner + Vote share */}
+          {/* 2026 Prediction (left) + 2021 Actual Result (right) */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <WinnerCard
               winner={result.predictedWinner}
               confidenceScore={result.confidenceScore}
               constituencyName={result.constituencyName}
             />
-            <VoteShareChart candidates={result.allCandidates} />
+            {result.historicalData ? (
+              <Election2021Panel
+                data={result.historicalData}
+                constituencyName={result.constituencyName}
+              />
+            ) : (
+              <VoteShareChart candidates={result.allCandidates} />
+            )}
           </div>
 
-          {/* Demographics + 2021 Results side-by-side */}
-          {(result.demographics || result.historicalData) && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {result.demographics && (
-                <DemographicsPanel
-                  data={result.demographics}
-                  constituencyName={result.constituencyName}
-                />
-              )}
-              {result.historicalData && (
-                <Election2021Panel
-                  data={result.historicalData}
-                  constituencyName={result.constituencyName}
-                />
-              )}
-            </div>
+          {/* Party flip analysis — only when winner party changed vs 2021 */}
+          {result.historicalData && (
+            <PartyChangePanel
+              predictedWinner={result.predictedWinner}
+              allCandidates={result.allCandidates}
+              historicalData={result.historicalData}
+            />
+          )}
+
+          {/* Demographics panel */}
+          {result.demographics && (
+            <DemographicsPanel
+              data={result.demographics}
+              constituencyName={result.constituencyName}
+            />
           )}
 
           {/* Factor breakdown */}
