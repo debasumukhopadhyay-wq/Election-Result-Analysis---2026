@@ -5,10 +5,10 @@ const { getCachedPrediction } = require('../services/predictionCache');
 const { REAL_2021_NUMS } = require('../data/real2021Results');
 const historicalResults = require('../data/historicalResults');
 
-// 2021 WB actual result: TMC 213, BJP 77, ISF 1 (Bhangar #172), RSP 1 (Keshpur), IND 2
-// CPM 0, INC 0 (Congress won zero seats in 2021)
+// 2021 WB actual result (incl. bypolls): TMC 215, BJP 77, ISF 1 (Bhangar #172), IND 1 (Kalimpong #1 — GJM-Tamang)
+// CPM 0, INC 0, RSP 0 (Keshpur was won by TMC's Seuli Saha, not RSP)
 // For verified seats, use the real data. For generated data, apply the known 2021 outcome:
-// only TMC/BJP actually won seats (except Bhangar=ISF, Keshpur=RSP).
+// only TMC/BJP actually won seats (except Bhangar=ISF, Kalimpong=IND/GJM).
 function get2021Winner(c) {
   const constNum = parseInt(c.id.replace('WB-', ''));
   const hist = historicalResults[c.id];
@@ -25,7 +25,7 @@ function get2021Winner(c) {
 
   // Known special seats in 2021
   if (constNum === 172) return { party: 'ISF', candidate: 'Naushad Siddiqui', voteShare: 0.41 }; // Bhangar — ISF's only win
-  if (constNum === 227) return { party: 'RSP', candidate: 'Pradip Kumar Barman', voteShare: 0.38 }; // Keshpur — RSP win
+  if (constNum === 22) return { party: 'IND', candidate: 'Ruden Sada Lepcha', voteShare: 0.40 }; // Kalimpong — GJM-Tamang backed Independent
 
   // For generated data: only TMC or BJP won in 2021
   const validParties = ['TMC', 'BJP'];

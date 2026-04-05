@@ -113,21 +113,31 @@ export default function DashboardPage() {
       {/* ═══ HEADLINE SUMMARY — Seats, Vote %, Swings ═══ */}
       {(() => {
         const projEntries = Object.entries(summary.projections).sort((a, b) => b[1].seats - a[1].seats);
-        // 2021 baseline seats from allSeats winner2021 data
-        const seats2021: Record<string, number> = {};
-        allSeats.forEach((s: any) => {
-          const p = s.winner2021?.party;
-          if (p) seats2021[p] = (seats2021[p] || 0) + 1;
+        // Actual 2021 WB Assembly results (including Samserganj & Jangipur bypolls):
+        // TMC 215, BJP 77, ISF 1 (Bhangar), IND 1 (Kalimpong — GJM-Tamang), CPM 0, INC 0
+        const seats2021: Record<string, number> = {
+          TMC: 215, BJP: 77, ISF: 1, IND: 1, CPM: 0, INC: 0
+        };
+        // Merge: all parties from projections + any 2021 winners not in projections
+        const projMap = new Map(projEntries);
+        const allParties = [...projEntries];
+        Object.entries(seats2021).forEach(([party, seats]) => {
+          if (seats > 0 && !projMap.has(party)) {
+            allParties.push([party, { seats: 0, minSeats: 0, maxSeats: 0, voteShare: 0 }]);
+          }
         });
-        const seats2026: Record<string, number> = {};
-        projEntries.forEach(([p, proj]) => { seats2026[p] = proj.seats; });
+        allParties.sort((a, b) => {
+          // Sort by 2026 seats desc, then 2021 seats desc
+          const diff = (b[1] as any).seats - (a[1] as any).seats;
+          return diff !== 0 ? diff : (seats2021[b[0]] || 0) - (seats2021[a[0]] || 0);
+        });
 
         const topReasons = [
-          { title: 'TMC Organizational Dominance', detail: 'TMC\'s unmatched booth-level machinery, panchayat control, and welfare schemes (Lakshmir Bhandar, Kanyashree) give it a structural advantage in 250+ seats.' },
-          { title: 'BJP Hindu Consolidation', detail: 'BJP retains strong Hindu vote consolidation in border districts, Jungle Mahal, and urban seats — but has limited reach in Muslim-majority belts.' },
-          { title: 'Anti-Incumbency Pockets', detail: 'After 15 years in power, TMC faces anti-incumbency in specific seats — corruption scandals, local grievances, and candidate fatigue erode margins.' },
-          { title: 'Left-ISF Alliance Marginal Impact', detail: 'Despite the CPM-ISF alliance, vote transfer remains weak. The Left\'s cadre base has eroded since 2011 and ISF\'s reach is limited to a few S24P pockets.' },
-          { title: 'Muslim Vote Stays with TMC', detail: 'Muslim voters continue to see TMC as the most effective anti-BJP shield. ISF and CPM fail to consolidate the Muslim vote away from TMC.' },
+          { title: 'TMC Organizational Dominance', detail: 'TMC\'s unmatched booth-level machinery, panchayat control, and welfare schemes (Lakshmir Bhandar, Kanyashree) give it a structural advantage in 250+ seats. But 15 years of incumbency is eroding margins.' },
+          { title: 'BJP Hindu Consolidation', detail: 'BJP retains strong Hindu vote consolidation in border districts, Jungle Mahal, and urban seats — but has limited reach in Muslim-majority belts. Its 2021 vote share (~38%) remains competitive.' },
+          { title: 'CPM-ISF Alliance Revival (0 → 16 seats)', detail: 'Left Front + ISF seat-sharing deal (CPM 195 seats, ISF 30, CPI-ML 8) pools the Left cadre and Muslim mobilization vote. Left vote share collapsed from 40% (2011) to ~5% (2021), but anti-incumbency against TMC and ISF\'s mosque/madrasa network in S24P and Murshidabad give the alliance a path to 10–20 seats in industrial belt, N.Bengal, and Muslim-majority pockets.' },
+          { title: 'Congress Solo Run Revival (0 → 8 seats)', detail: 'INC is contesting all 294 seats independently for the first time in 30 years. Adhir Ranjan Chowdhury\'s influence in Murshidabad-Malda belt — where Congress\'s Isha Khan Chowdhury won the 2024 Lok Sabha seat — gives INC a realistic shot at 2–5 seats. Anti-TMC sentiment among minority voters and Congress\'s traditional base in Uttar Dinajpur add a few more.' },
+          { title: 'Muslim Vote Fragmentation', detail: 'Muslims (~30% of WB population) influence 85+ seats. Unlike 2021 where TMC swept Muslim votes as the anti-BJP shield, ISF, AJUP, and AIMIM now offer "for Muslims, by Muslims" alternatives — fragmenting the Muslim vote and creating openings for CPM-ISF and Congress in Murshidabad, Malda, and S24P.' },
         ];
 
         return (
@@ -148,22 +158,27 @@ export default function DashboardPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {projEntries.slice(0, 6).map(([party, proj]) => {
-                    const prev = seats2021[party] || 0;
-                    const swing = proj.seats - prev;
-                    const votePercent = Math.round(proj.voteShare * 100);
+                  {allParties.map(([party, proj]) => {
+                    const prev = seats2021[party] ?? 0;
+                    const projected = (proj as any).seats || 0;
+                    const swing = projected - prev;
+                    const votePercent = Math.round(((proj as any).voteShare || 0) * 100);
                     return (
                       <tr key={party} className="hover:bg-blue-50">
                         <td className="py-2 font-semibold" style={{ color: PARTY_COLORS[party] || '#6B7280' }}>{party}</td>
-                        <td className="py-2 text-center text-lg font-bold text-gray-900">{proj.seats}</td>
-                        <td className="py-2 text-center text-gray-500">{prev || '—'}</td>
+                        <td className="py-2 text-center text-lg font-bold text-gray-900">{projected}</td>
+                        <td className="py-2 text-center text-gray-500">{prev}</td>
                         <td className="py-2 text-center">
                           <span className={`font-semibold ${swing > 0 ? 'text-green-600' : swing < 0 ? 'text-red-600' : 'text-gray-400'}`}>
                             {swing > 0 ? `+${swing}` : swing === 0 ? '—' : swing}
                           </span>
                         </td>
-                        <td className="py-2 text-center font-medium text-gray-700">{votePercent}%</td>
-                        <td className="py-2 text-center text-xs text-gray-400">{proj.minSeats}–{proj.maxSeats}</td>
+                        <td className="py-2 text-center font-medium text-gray-700">{votePercent > 0 ? `${votePercent}%` : '—'}</td>
+                        <td className="py-2 text-center text-xs text-gray-400">
+                          {(proj as any).minSeats !== undefined && projected > 0
+                            ? `${(proj as any).minSeats}–${(proj as any).maxSeats}`
+                            : '—'}
+                        </td>
                       </tr>
                     );
                   })}
