@@ -2,6 +2,7 @@ const {
   FACTOR_WEIGHTS, PARTY_POPULARITY, PARTY_CADRE_STRENGTH, PARTY_FUNDING,
   PARTY_DIGITAL, ALLIANCE_BONUS, PARTY_MEDIA, normalizeWeights
 } = require('./scoringWeights');
+const { REAL_2021_NUMS } = require('../data/real2021Results');
 
 // Seeded random for deterministic results
 function seed(n) {
@@ -13,8 +14,22 @@ function seededRandFloat(n, min, max) {
 }
 
 // Helper: get local party share from constituency.partyStrength
+// CPM-ISF SEAT SHARING: In ISF seats, ISF inherits CPM's local share (and vice versa).
+// This models the alliance correctly — they don't split the Left-Muslim vote.
 function localShare(candidate, constituency) {
-  return (constituency?.partyStrength || {})[candidate.party];
+  const ps = constituency?.partyStrength || {};
+  const own = ps[candidate.party];
+  // Seat-sharing alliance: the contesting partner inherits ~40% of the absent partner's local share
+  // This reflects real voter transfer when one partner steps aside
+  if (candidate.party === 'CPM') {
+    const isfShare = ps['ISF'] || 0;
+    return (own || 0) + isfShare * 0.35; // CPM inherits portion of ISF's Muslim mobilization
+  }
+  if (candidate.party === 'ISF') {
+    const cpmShare = ps['CPM'] || 0;
+    return (own || 0) + cpmShare * 0.30; // ISF inherits portion of CPM's Left cadre vote
+  }
+  return own;
 }
 
 // ─── Individual factor scorers (each returns 0–100) ───────────────────────
@@ -43,12 +58,24 @@ function scorePartyBrand(candidate, constituency) {
 }
 
 // F3: Anti-Incumbency — being incumbent is risky
+// Includes systemic ruling-party penalty: TMC has ruled WB for 15 yrs (since 2011).
+// Even a new TMC candidate inherits voter frustration with the ruling establishment.
+// BJP faces milder central-government fatigue in state elections.
 function scoreAntiIncumbency(candidate) {
   const terms = candidate.termCount || 0;
-  if (terms === 0) return 70;
-  const risk = candidate.antiIncumbencyRisk || 0.3;
-  const incumbencyPenalty = Math.min(60, terms * 10 + risk * 40);
-  return Math.max(10, 100 - incumbencyPenalty);
+  let s;
+  if (terms === 0) {
+    s = 70;
+  } else {
+    const risk = candidate.antiIncumbencyRisk || 0.3;
+    const incumbencyPenalty = Math.min(60, terms * 10 + risk * 40);
+    s = Math.max(10, 100 - incumbencyPenalty);
+  }
+  // Systemic ruling party penalty — structural, not personal
+  // 15 years of continuous rule (2011–2026) creates deep anti-incumbency in many pockets
+  if (candidate.party === 'TMC') s = Math.max(10, s - 18); // 15 yrs: corruption scandals, local grievances, voter fatigue
+  if (candidate.party === 'BJP') s = Math.max(10, s - 5);  // Central govt fatigue; NDA 3rd term weariness
+  return Math.min(100, Math.max(0, s));
 }
 
 // F4: Caste Equation — MOST DECISIVE (weight=9)
@@ -70,22 +97,37 @@ function scoreCasteEquation(candidate, constituency, demographics) {
     else if (candidate.party === 'CPM') s += 12;
     else if (candidate.party === 'BJP') s += 10;
   }
-  // Muslim-majority districts
+  // Muslim-majority constituencies (>40% Muslim)
+  // TMC retains majority of Muslim vote; ISF/CPM alliance is marginal
+  // In 2021, TMC swept virtually all Muslim-majority seats despite alliance
   if (religion.muslim > 0.40) {
-    if (candidate.party === 'TMC') s += 22;
-    else if (candidate.party === 'ISF') s += 15;
-    else if (candidate.party === 'CPM') s += 8;
-    else if (candidate.party === 'BJP') s -= 12;
+    if (candidate.party === 'TMC') s += 20;   // TMC remains first choice for Muslim voters — welfare + anti-BJP shield
+    else if (candidate.party === 'ISF') s += 8;  // ISF has some mosque network but limited electoral pull
+    else if (candidate.party === 'CPM') s += 4;  // CPM has residual Left vote but minimal Muslim traction
+    else if (candidate.party === 'INC') s += 5;  // Congress has traditional Muslim pockets in Murshidabad
+    else if (candidate.party === 'JUP') s += 18; // JUP — strong Muslim identity politics; ulema network
+    else if (candidate.party === 'AIMIM') s += 15; // AIMIM — Owaisi's Muslim identity appeal
+    else if (candidate.party === 'BJP') s -= 18; // BJP polarisation drives Muslim voters away
   } else if (religion.muslim > 0.25) {
-    if (candidate.party === 'TMC') s += 12;
-    else if (candidate.party === 'CPM') s += 6;
+    // Significant Muslim minority — TMC still dominant
+    if (candidate.party === 'TMC') s += 14;   // TMC's Muslim vote bank intact in mixed seats
+    else if (candidate.party === 'ISF') s += 4;  // ISF marginal outside S24P
+    else if (candidate.party === 'CPM') s += 3;  // CPM negligible Muslim traction
+    else if (candidate.party === 'JUP') s += 10; // JUP has some reach
+    else if (candidate.party === 'AIMIM') s += 8;
+    else if (candidate.party === 'BJP') s -= 8;
+  } else if (religion.muslim > 0.15) {
+    if (candidate.party === 'TMC') s += 8;
+    else if (candidate.party === 'CPM') s += 2;
+    else if (candidate.party === 'ISF') s += 1;
   }
-  // Hindu-dominant areas — BJP gains
+  // Hindu-dominant areas — BJP benefits from religious polarisation strategy
   if (religion.hindu > 0.85) {
-    if (candidate.party === 'BJP') s += 15;
-    else if (candidate.party === 'TMC') s += 4;
+    if (candidate.party === 'BJP') s += 24;   // Strong Hindu consolidation; polarisation effect
+    else if (candidate.party === 'TMC') s += 3; // TMC retains some Hindu vote but loses ground
   } else if (religion.hindu > 0.75) {
-    if (candidate.party === 'BJP') s += 8;
+    if (candidate.party === 'BJP') s += 16;   // Moderate Hindu consolidation
+    else if (candidate.party === 'TMC') s += 2;
   }
   // Candidate demographic alignment
   s += (candidate.demographicAlignmentScore || 0.5) * 18;
@@ -102,15 +144,27 @@ function scoreCommunityCoalition(candidate, constituency, demographics) {
   const religion = dem.religion || {};
   const caste = dem.caste || {};
 
-  // Party-specific community bonuses (based on religion/caste profile)
+  // Party-specific community coalition bonuses
+  // TMC retains broadest coalition — Muslim + SC + OBC; BJP consolidates Hindu vote
   if (candidate.party === 'TMC') {
-    s += religion.muslim > 0.30 ? 15 : (religion.muslim > 0.15 ? 8 : 4);
+    s += religion.muslim > 0.30 ? 16 : (religion.muslim > 0.15 ? 10 : 6); // TMC's broadest coalition
   } else if (candidate.party === 'BJP') {
-    s += religion.hindu > 0.80 ? 15 : (religion.hindu > 0.70 ? 10 : 5);
+    // BJP Hindu consolidation — strong polarisation strategy
+    s += religion.hindu > 0.80 ? 18 : (religion.hindu > 0.70 ? 13 : 6);
   } else if (candidate.party === 'CPM') {
-    s += caste.sc > 0.20 ? 10 : 5;
+    // CPM has limited community coalition; traditional Left vote in industrial/SC areas
+    s += caste.sc > 0.20 ? 8 : (religion.muslim > 0.30 ? 4 : 3);
   } else if (candidate.party === 'ISF') {
-    s += religion.muslim > 0.40 ? 18 : 5;
+    // ISF niche Muslim mobilisation — only effective in S24P pockets
+    s += religion.muslim > 0.40 ? 10 : (religion.muslim > 0.25 ? 4 : 1);
+  } else if (candidate.party === 'JUP') {
+    // JUP — strong Muslim community coalition in Murshidabad
+    s += religion.muslim > 0.40 ? 20 : (religion.muslim > 0.25 ? 12 : 2);
+  } else if (candidate.party === 'AIMIM') {
+    // AIMIM — Owaisi's Muslim identity appeal
+    s += religion.muslim > 0.40 ? 16 : (religion.muslim > 0.25 ? 10 : 2);
+  } else if (candidate.party === 'INC') {
+    s += religion.muslim > 0.35 ? 6 : 2;
   }
   s += (candidate.demographicAlignmentScore || 0.5) * 10;
   return Math.min(100, Math.max(0, s));
@@ -209,11 +263,18 @@ function scoreOppositionWeakness(candidate, allCandidates, constituency) {
 }
 
 // F16: Alliance Strategy (weight=6)
+// CPM + ISF are formal allies in 2026 — both get synergy bonus by default
 function scoreAllianceStrategy(candidate, constituency) {
   const base = 50 + (ALLIANCE_BONUS[candidate.party] || 0);
   const constNum = parseInt(constituency.id.replace('WB-', ''));
   const variation = seededRandFloat(constNum * 61 + (candidate.party.charCodeAt(0) * 11), -8, 8);
-  return Math.min(100, Math.max(0, base + variation));
+  // CPM+ISF alliance synergy: marginal — alliance failed to win seats in 2021
+  let allianceSynergy = 0;
+  const muslim = constituency?.demographics?.religion?.muslim || 0;
+  if (candidate.party === 'CPM' || candidate.party === 'ISF') {
+    allianceSynergy = muslim > 0.30 ? 3 : (muslim > 0.15 ? 2 : 1);
+  }
+  return Math.min(100, Math.max(0, base + variation + allianceSynergy));
 }
 
 // F17: Candidate Accessibility — local presence + popularity
@@ -311,14 +372,6 @@ function scoreMomentum(candidate, constituency, historicalData) {
   let s = ls !== undefined
     ? Math.min(80, ls * 100 + 18)
     : (PARTY_POPULARITY[candidate.party] || 20);
-  // Swing trend: positive = rising, negative = falling
-  if (historicalData && historicalData.swingTrend) {
-    const trend = historicalData.swingTrend[candidate.party];
-    if (typeof trend === 'number') {
-      if (trend > 0.05) s += 12;
-      else if (trend < -0.05) s -= 8;
-    }
-  }
   const variation = seededRandFloat(constNum * 79 + (candidate.party.charCodeAt(0) * 19), -8, 8);
   return Math.min(100, Math.max(0, s + variation));
 }
@@ -338,7 +391,7 @@ const CTX_WEIGHTS = {
 };
 
 function parseContextAdjustments(contextText) {
-  if (!contextText || contextText.trim().length < 5) return { scoreAdj: {}, signals: [] };
+  if (!contextText || contextText.trim().length < 5) return { scoreAdj: {}, signals: [], partyExcluded: {} };
   const tx = contextText;
 
   const factorAdj = {};   // party → { factor → delta }
@@ -622,20 +675,152 @@ function parseContextAdjustments(contextText) {
   if (/isf.{0,20}(weak|split|losing)/i.test(tx))
     signal('isf_weak', 'ISF', { momentum: -10, communityCoalition: -12 }, 'ISF weakening', 'ISF vote may transfer to TMC or Left in Muslim-majority areas.');
 
+  // ── Party absent / No candidate / Vote-transfer alliances ────────────────
+  // When a party fields no candidate, its votes transfer to the alliance partner.
+  // This is modelled differently from a score nudge — the absent party is
+  // completely excluded from the race and their vote share flows to the beneficiary.
+  // Transfer rate: ~70-75% (Indian alliance transfer literature).
+  // We express this as a very large score bonus to the beneficiary (uncapped).
+  const partyExcluded = {};  // party → beneficiary
+
+  // ISF + CPM/Left alliance (no ISF candidate) → ISF votes → CPM
+  const txFlat = tx.replace(/\n/g, ' ');
+  const mentionsISF = /\bisf\b/i.test(txFlat);
+  const mentionsCPM = /\b(cpm|cpim|left front|left)\b/i.test(txFlat);
+  const mentionsINC = /\b(congress|inc)\b/i.test(txFlat);
+  const mentionsBJP = /\bbjp\b/i.test(txFlat);
+  const hasAllianceKeyword = /\b(allies|allied|alliance|allying|ally|together|joint|seat.?shar|seat.?adjust|no.*candidate|not.*contest|withdraw|absent|support|back|deal|pact|partner|join)/i.test(txFlat);
+  const noISFCandidate = /(no isf candidate|isf.{0,20}(will not|won.t|not).{0,10}contest|isf.{0,20}(withdraw|absent|not fielding))/i.test(txFlat);
+
+  const isfCpmAlliance = (mentionsISF && mentionsCPM && hasAllianceKeyword) || noISFCandidate;
+  if (isfCpmAlliance) {
+    // Detect partial alliance: "ally in few seats", "ally in 30% of the seats", "ally in N seats", "partial ally"
+    // Percentage pattern handles: "30% seats", "30% of seats", "30% of the seats"
+    const pctPattern = /(\d+)\s*%\s*(of\s+(the\s+)?)?seats?/i;
+    const isPartialAlliance = /\b(few seats?|some seats?|partial|select seats?|limited seats?|only in|in\s+\w+\s*only)\b/i.test(txFlat)
+      || pctPattern.test(txFlat)
+      || /ally.{0,40}(\d+)\s+seats?\b/i.test(txFlat);
+
+    let allianceScale = 1.0;
+    if (isPartialAlliance && !noISFCandidate) {
+      const percentMatch = txFlat.match(pctPattern);
+      const countMatch = txFlat.match(/ally.{0,40}?(\d+)\s+seats?\b/i);
+      if (percentMatch) {
+        allianceScale = Math.max(0.05, Math.min(1.0, parseInt(percentMatch[1]) / 100));
+      } else if (countMatch) {
+        allianceScale = Math.max(0.05, Math.min(1.0, parseInt(countMatch[1]) / 294));
+      } else if (/\bfew\b/i.test(txFlat)) {
+        allianceScale = 0.20;  // "few seats" ≈ 20% of constituencies
+      } else {
+        allianceScale = 0.35;  // "some seats" / "partial" ≈ 35%
+      }
+    }
+
+    // ≥75% alliance is treated as full — majority of seats have alliance, apply full bonuses
+    const isFullAlliance = allianceScale >= 0.75;
+    // Effective scale for bonuses: full for majority alliances, proportional otherwise
+    const effectiveScale = isFullAlliance ? 1.0 : allianceScale;
+
+    // Only exclude ISF (no candidate) when it's a full/complete alliance
+    if (isFullAlliance) partyExcluded['ISF'] = 'CPM';
+
+    if (!factorAdj['CPM']) factorAdj['CPM'] = {};
+    factorAdj['CPM']['communityCoalition'] = (factorAdj['CPM']['communityCoalition'] || 0) + Math.round(80 * effectiveScale);
+    factorAdj['CPM']['allianceStrategy']   = (factorAdj['CPM']['allianceStrategy']   || 0) + Math.round(60 * effectiveScale);
+    factorAdj['CPM']['casteEquation']      = (factorAdj['CPM']['casteEquation']       || 0) + Math.round(50 * effectiveScale);
+    factorAdj['CPM']['momentum']           = (factorAdj['CPM']['momentum']            || 0) + Math.round(40 * effectiveScale);
+    if (!factorAdj['TMC']) factorAdj['TMC'] = {};
+    factorAdj['TMC']['oppositionWeakness'] = (factorAdj['TMC']['oppositionWeakness'] || 0) - Math.round(40 * effectiveScale);
+
+    const pctLabel = isFullAlliance ? '~70%' : `~${Math.round(allianceScale * 70)}%`;
+    const scopeLabel = isFullAlliance ? '' : ` (partial — ~${Math.round(allianceScale * 100)}% of seats)`;
+    if (isFullAlliance) {
+      signals.push({ party: 'ISF', label: 'No ISF candidate — votes transfer to CPM/Left', scoreDelta: -99, direction: 'negative', reason: 'ISF-CPM alliance: ISF withdraws, ~70% of ISF votes transfer to CPM/Left.', factors: ['allianceStrategy', 'communityCoalition'] });
+    } else {
+      signals.push({ party: 'ISF', label: `ISF-CPM partial alliance${scopeLabel}`, scoreDelta: Math.round(-99 * allianceScale), direction: 'negative', reason: `ISF-CPM partial alliance: ISF contests most seats but cedes ~${Math.round(allianceScale * 100)}% to CPM. Proportional vote transfer effect applied.`, factors: ['allianceStrategy', 'communityCoalition'] });
+    }
+    signals.push({ party: 'CPM', label: `ISF vote transfer to CPM (${pctLabel} transfer rate)${scopeLabel}`, scoreDelta: Math.round(30 * allianceScale), direction: 'positive', reason: `ISF-CPM alliance${scopeLabel}: CPM absorbs ISF's Muslim-minority vote bank in allied seats.`, factors: ['communityCoalition', 'allianceStrategy', 'casteEquation', 'momentum'] });
+  }
+
+  // ISF + Congress alliance (no ISF candidate) → ISF votes → INC
+  const isfIncAlliance = (mentionsISF && mentionsINC && hasAllianceKeyword) || (noISFCandidate && mentionsINC);
+  if (isfIncAlliance && !isfCpmAlliance) {
+    const incPctPattern = /(\d+)\s*%\s*(of\s+(the\s+)?)?seats?/i;
+    const isPartialIncAlliance = /\b(few seats?|some seats?|partial|select seats?|limited seats?|only in|in\s+\w+\s*only)\b/i.test(txFlat)
+      || incPctPattern.test(txFlat)
+      || /ally.{0,40}(\d+)\s+seats?\b/i.test(txFlat);
+
+    let incAllianceScale = 1.0;
+    if (isPartialIncAlliance && !noISFCandidate) {
+      const percentMatch = txFlat.match(incPctPattern);
+      const countMatch = txFlat.match(/ally.{0,40}?(\d+)\s+seats?\b/i);
+      if (percentMatch) {
+        incAllianceScale = Math.max(0.05, Math.min(1.0, parseInt(percentMatch[1]) / 100));
+      } else if (countMatch) {
+        incAllianceScale = Math.max(0.05, Math.min(1.0, parseInt(countMatch[1]) / 294));
+      } else if (/\bfew\b/i.test(txFlat)) {
+        incAllianceScale = 0.20;
+      } else {
+        incAllianceScale = 0.35;
+      }
+    }
+
+    const isFullIncAlliance = incAllianceScale >= 0.75;
+    const effectiveIncScale = isFullIncAlliance ? 1.0 : incAllianceScale;
+    if (isFullIncAlliance) partyExcluded['ISF'] = 'INC';
+
+    if (!factorAdj['INC']) factorAdj['INC'] = {};
+    factorAdj['INC']['communityCoalition'] = (factorAdj['INC']['communityCoalition'] || 0) + Math.round(80 * effectiveIncScale);
+    factorAdj['INC']['allianceStrategy']   = (factorAdj['INC']['allianceStrategy']   || 0) + Math.round(60 * effectiveIncScale);
+    factorAdj['INC']['momentum']           = (factorAdj['INC']['momentum']            || 0) + Math.round(40 * effectiveIncScale);
+
+    const incPctLabel = isFullIncAlliance ? '~70%' : `~${Math.round(incAllianceScale * 70)}%`;
+    const incScopeLabel = isFullIncAlliance ? '' : ` (partial — ~${Math.round(incAllianceScale * 100)}% of seats)`;
+    if (isFullIncAlliance) {
+      signals.push({ party: 'ISF', label: 'No ISF candidate — votes transfer to Congress', scoreDelta: -99, direction: 'negative', reason: 'ISF-Congress alliance: ISF withdraws, ~70% of ISF votes transfer to INC.', factors: ['allianceStrategy', 'communityCoalition'] });
+    } else {
+      signals.push({ party: 'ISF', label: `ISF-Congress partial alliance${incScopeLabel}`, scoreDelta: Math.round(-99 * incAllianceScale), direction: 'negative', reason: `ISF-Congress partial alliance: ISF contests most seats but cedes ~${Math.round(incAllianceScale * 100)}% to INC.`, factors: ['allianceStrategy', 'communityCoalition'] });
+    }
+    signals.push({ party: 'INC', label: `ISF vote transfer to INC (${incPctLabel} transfer rate)${incScopeLabel}`, scoreDelta: Math.round(30 * incAllianceScale), direction: 'positive', reason: `ISF-INC alliance${incScopeLabel}: Congress absorbs ISF's minority vote bank in allied seats.`, factors: ['communityCoalition', 'allianceStrategy', 'momentum'] });
+  }
+
+  // BJP not contesting / BJP absent → votes split between CPM and TMC (anti-TMC tactical)
+  const noBJPCandidate = /(no bjp candidate|bjp.{0,20}(will not|won.t|not).{0,10}contest|bjp.{0,20}(withdraw|absent|not fielding))/i.test(txFlat);
+  const bjpAbsent = noBJPCandidate || (mentionsBJP && hasAllianceKeyword && mentionsCPM && !mentionsISF);
+  if (bjpAbsent) {
+    partyExcluded['BJP'] = 'CPM';
+    if (!factorAdj['CPM']) factorAdj['CPM'] = {};
+    factorAdj['CPM']['allianceStrategy']   = (factorAdj['CPM']['allianceStrategy']   || 0) + 60;
+    factorAdj['CPM']['boothNetwork']       = (factorAdj['CPM']['boothNetwork']        || 0) + 40;
+    factorAdj['CPM']['momentum']           = (factorAdj['CPM']['momentum']            || 0) + 30;
+    signals.push({ party: 'BJP', label: 'No BJP candidate — votes split (mostly CPM anti-TMC)', scoreDelta: -99, direction: 'negative', reason: 'BJP absent: anti-TMC BJP voters tactically shift to the strongest opposition (CPM/Left).', factors: ['allianceStrategy', 'boothNetwork'] });
+    signals.push({ party: 'CPM', label: 'BJP vote transfer to CPM/Left', scoreDelta: 25, direction: 'positive', reason: 'BJP absence benefits CPM as the main anti-TMC alternative.', factors: ['allianceStrategy', 'boothNetwork', 'momentum'] });
+  }
+
+  // CPM not contesting / CPM absent → votes split
+  const cpmAbsent = /(no cpm candidate|no cpim candidate|cpm.{0,20}(not contest|withdraw|absent|no candidate))/i.test(tx);
+  if (cpmAbsent && !isfCpmAlliance && !bjpAbsent) {
+    partyExcluded['CPM'] = 'ISF';
+    if (!factorAdj['ISF']) factorAdj['ISF'] = {};
+    factorAdj['ISF']['communityCoalition'] = (factorAdj['ISF']['communityCoalition'] || 0) + 60;
+    factorAdj['ISF']['allianceStrategy']   = (factorAdj['ISF']['allianceStrategy']   || 0) + 50;
+    signals.push({ party: 'CPM', label: 'No CPM candidate — Left votes transfer to ISF', scoreDelta: -99, direction: 'negative', reason: 'CPM absent: Left votes transfer to ISF as the main minority-opposition alternative.', factors: ['allianceStrategy', 'communityCoalition'] });
+    signals.push({ party: 'ISF', label: 'CPM vote transfer to ISF', scoreDelta: 25, direction: 'positive', reason: 'CPM absence lets ISF consolidate the Left-minority vote bank.', factors: ['communityCoalition', 'allianceStrategy', 'momentum'] });
+  }
+
   // Convert factorAdj into total score deltas per party
+  // Use a higher cap (50) for parties receiving vote-transfer alliance bonuses
   const scoreAdj = {};
   Object.entries(factorAdj).forEach(([party, factors]) => {
     let totalDelta = 0;
     Object.entries(factors).forEach(([factor, delta]) => {
       totalDelta += delta * (CTX_WEIGHTS[factor] || 3) / 100;
     });
-    scoreAdj[party] = Math.min(18, Math.max(-18, Math.round(totalDelta * 10) / 10));
+    const cap = Object.values(partyExcluded).includes(party) ? 50 : 18;
+    scoreAdj[party] = Math.min(cap, Math.max(-cap, Math.round(totalDelta * 10) / 10));
   });
 
-  // Update each signal's scoreDelta to reflect the capped party total where relevant
-  // (individual signal deltas already computed at signal() time — keep them as-is for display)
-
-  return { scoreAdj, signals };
+  return { scoreAdj, signals, partyExcluded };
 }
 
 // ─── Main prediction function ───────────────────────────────────────────────
@@ -643,36 +828,56 @@ function parseContextAdjustments(contextText) {
 function predictConstituency({ constituency, candidates, historicalData, demographics, weights, contextText }) {
   const W = normalizeWeights(weights);
   // Parse free-text context into per-party score adjustments + signal log
-  const { scoreAdj: ctxAdj, signals: contextSignals } = parseContextAdjustments(contextText);
+  const { scoreAdj: ctxAdj, signals: contextSignals, partyExcluded } = parseContextAdjustments(contextText);
+
+  // Blend 2021 real vote shares into partyStrength — ONLY for constituencies with verified real data.
+  // Weight: 30% actual 2021 result + 70% constituency field estimate.
+  // Reduced from 60/40 because 2021 was 5 years ago — anti-incumbency, demographic shifts,
+  // and alliance changes make current ground reality more predictive than past results.
+  const constNum = parseInt(constituency.id.replace('WB-', ''));
+  let effectiveConstituency = constituency;
+  if (REAL_2021_NUMS.has(constNum) && historicalData && historicalData.elections) {
+    const e2021 = historicalData.elections.find(e => e.year === 2021);
+    if (e2021 && e2021.results.length > 0) {
+      const blended = { ...(constituency.partyStrength || {}) };
+      e2021.results.forEach(r => {
+        const existing = blended[r.party];
+        blended[r.party] = existing !== undefined
+          ? parseFloat((r.voteShare * 0.30 + existing * 0.70).toFixed(3))
+          : parseFloat((r.voteShare * 0.30).toFixed(3));
+      });
+      effectiveConstituency = { ...constituency, partyStrength: blended };
+    }
+  }
 
   const scoredCandidates = candidates.map(candidate => {
     // Compute all 25 factor scores
     const factorScores = {
-      candidateImage:         { score: scoreCandidateImage(candidate, constituency),                              weight: W.candidateImage },
-      partyBrand:             { score: scorePartyBrand(candidate, constituency),                                  weight: W.partyBrand },
-      antiIncumbency:         { score: scoreAntiIncumbency(candidate),                                            weight: W.antiIncumbency },
-      casteEquation:          { score: scoreCasteEquation(candidate, constituency, demographics),                 weight: W.casteEquation },
-      communityCoalition:     { score: scoreCommunityCoalition(candidate, constituency, demographics),            weight: W.communityCoalition },
-      localIssuesFit:         { score: scoreLocalIssuesFit(candidate, constituency),                             weight: W.localIssuesFit },
-      boothNetwork:           { score: scoreBoothNetwork(candidate, constituency),                               weight: W.boothNetwork },
-      groundIntelligence:     { score: scoreGroundIntelligence(candidate, constituency),                         weight: W.groundIntelligence },
-      campaignNarrative:      { score: scoreCampaignNarrative(candidate, constituency),                          weight: W.campaignNarrative },
-      leadershipSupport:      { score: scoreLeadershipSupport(candidate, constituency, demographics),            weight: W.leadershipSupport },
-      funding:                { score: scoreFunding(candidate),                                                   weight: W.funding },
-      volunteerStrength:      { score: scoreVolunteerStrength(candidate, constituency),                          weight: W.volunteerStrength },
-      socialMediaStrategy:    { score: scoreSocialMedia(candidate, constituency, demographics),                  weight: W.socialMediaStrategy },
-      whatsappNetworks:       { score: scoreWhatsapp(candidate, constituency, demographics),                     weight: W.whatsappNetworks },
-      oppositionWeakness:     { score: scoreOppositionWeakness(candidate, candidates, constituency),             weight: W.oppositionWeakness },
-      allianceStrategy:       { score: scoreAllianceStrategy(candidate, constituency),                           weight: W.allianceStrategy },
-      candidateAccessibility: { score: scoreCandidateAccessibility(candidate, constituency),                     weight: W.candidateAccessibility },
-      pastPerformance:        { score: scorePastPerformance(candidate, historicalData, constituency),            weight: W.pastPerformance },
-      manifestoCredibility:   { score: scoreManifestoCredibility(candidate, constituency),                       weight: W.manifestoCredibility },
-      mediaManagement:        { score: scoreMediaManagement(candidate),                                          weight: W.mediaManagement },
-      crisisHandling:         { score: scoreCrisisHandling(candidate, constituency),                             weight: W.crisisHandling },
-      voterTurnoutStrategy:   { score: scoreVoterTurnoutStrategy(candidate, constituency),                       weight: W.voterTurnoutStrategy },
-      electionDayManagement:  { score: scoreElectionDayMgmt(candidate, constituency),                           weight: W.electionDayManagement },
-      microTargeting:         { score: scoreMicroTargeting(candidate, constituency),                             weight: W.microTargeting },
-      momentum:               { score: scoreMomentum(candidate, constituency, historicalData),                   weight: W.momentum },
+      candidateImage:         { score: scoreCandidateImage(candidate, effectiveConstituency),                              weight: W.candidateImage },
+      partyBrand:             { score: scorePartyBrand(candidate, effectiveConstituency),                                  weight: W.partyBrand },
+      antiIncumbency:         { score: scoreAntiIncumbency(candidate),                                                     weight: W.antiIncumbency },
+      casteEquation:          { score: scoreCasteEquation(candidate, effectiveConstituency, demographics),                 weight: W.casteEquation },
+      communityCoalition:     { score: scoreCommunityCoalition(candidate, effectiveConstituency, demographics),            weight: W.communityCoalition },
+      localIssuesFit:         { score: scoreLocalIssuesFit(candidate, effectiveConstituency),                             weight: W.localIssuesFit },
+      boothNetwork:           { score: scoreBoothNetwork(candidate, effectiveConstituency),                               weight: W.boothNetwork },
+      groundIntelligence:     { score: scoreGroundIntelligence(candidate, effectiveConstituency),                         weight: W.groundIntelligence },
+      campaignNarrative:      { score: scoreCampaignNarrative(candidate, effectiveConstituency),                          weight: W.campaignNarrative },
+      leadershipSupport:      { score: scoreLeadershipSupport(candidate, effectiveConstituency, demographics),            weight: W.leadershipSupport },
+      funding:                { score: scoreFunding(candidate),                                                            weight: W.funding },
+      volunteerStrength:      { score: scoreVolunteerStrength(candidate, effectiveConstituency),                          weight: W.volunteerStrength },
+      socialMediaStrategy:    { score: scoreSocialMedia(candidate, effectiveConstituency, demographics),                  weight: W.socialMediaStrategy },
+      whatsappNetworks:       { score: scoreWhatsapp(candidate, effectiveConstituency, demographics),                     weight: W.whatsappNetworks },
+      oppositionWeakness:     { score: scoreOppositionWeakness(candidate, candidates, effectiveConstituency),             weight: W.oppositionWeakness },
+      allianceStrategy:       { score: scoreAllianceStrategy(candidate, effectiveConstituency),                           weight: W.allianceStrategy },
+      candidateAccessibility: { score: scoreCandidateAccessibility(candidate, effectiveConstituency),                     weight: W.candidateAccessibility },
+      pastPerformance:        { score: scorePastPerformance(candidate, historicalData, effectiveConstituency),            weight: W.pastPerformance },
+      manifestoCredibility:   { score: scoreManifestoCredibility(candidate, effectiveConstituency),                       weight: W.manifestoCredibility },
+      mediaManagement:        { score: scoreMediaManagement(candidate),                                                    weight: W.mediaManagement },
+      crisisHandling:         { score: scoreCrisisHandling(candidate, effectiveConstituency),                             weight: W.crisisHandling },
+      voterTurnoutStrategy:   { score: scoreVoterTurnoutStrategy(candidate, effectiveConstituency),                       weight: W.voterTurnoutStrategy },
+      electionDayManagement:  { score: scoreElectionDayMgmt(candidate, effectiveConstituency),                           weight: W.electionDayManagement },
+      microTargeting:         { score: scoreMicroTargeting(candidate, effectiveConstituency),                             weight: W.microTargeting },
+      momentum:               { score: scoreMomentum(candidate, effectiveConstituency, historicalData),                   weight: W.momentum },
     };
 
     // Weighted total score (0-100)
@@ -680,9 +885,59 @@ function predictConstituency({ constituency, candidates, historicalData, demogra
       return sum + (score * weight) / 100;
     }, 0);
 
+    // ── Structural bonuses — strongholds, alliances, anti-incumbency pockets ──
+
+    const dem = demographics || {};
+    const muslimPct = (dem.religion || {}).muslim || 0;
+    let allianceBonus = 0;
+
+    // CPM+ISF Alliance bonus — seat-sharing consolidates Left+Muslim vote
+    if (candidate.party === 'CPM') {
+      allianceBonus = muslimPct > 0.40 ? 10 : (muslimPct > 0.25 ? 6 : (muslimPct > 0.15 ? 4 : 2));
+    } else if (candidate.party === 'ISF') {
+      allianceBonus = muslimPct > 0.40 ? 12 : (muslimPct > 0.25 ? 8 : 2);
+    }
+
+    // INC stronghold bonus — Baharampur/Murshidabad (Adhir Chowdhury belt)
+    // Constituencies 63-70 in Murshidabad are Congress's strongest pockets
+    const INC_STRONGHOLD_SEATS = new Set([63, 64, 65, 66, 67, 68, 69, 70]);
+    const INC_INFLUENCE_SEATS = new Set([55, 56, 57, 58, 71, 72, 73, 74, 75, 76]);
+    if (candidate.party === 'INC') {
+      if (INC_STRONGHOLD_SEATS.has(constNum)) allianceBonus += 14; // Adhir's core belt
+      else if (INC_INFLUENCE_SEATS.has(constNum)) allianceBonus += 7; // Extended Murshidabad influence
+      // Malda pockets — Congress has traditional presence
+      if (constNum >= 43 && constNum <= 54) allianceBonus += 5;
+    }
+
+    // CPM stronghold bonus — industrial belt, traditional Left pockets
+    const CPM_STRONGHOLD_SEATS = new Set([
+      26,  // Siliguri — Left stronghold
+      271, 272, 273, 274, 275, // Paschim Bardhaman — industrial belt (Asansol/Durgapur)
+      259, 260, 261,           // Purba Bardhaman — industrial pockets
+      223, 224, 225, 226,      // Jhargram — tribal/Left base
+      238, 239, 240,           // Bankura — tribal/Left belt
+    ]);
+    const CPM_INFLUENCE_SEATS = new Set([
+      127, 128, 129, 130, 131, // Kolkata — urban Left cadre pockets
+      191, 192, 193,           // Howrah — industrial belt
+      250, 251, 252,           // Purulia — tribal/Left base
+    ]);
+    if (candidate.party === 'CPM') {
+      if (CPM_STRONGHOLD_SEATS.has(constNum)) allianceBonus += 10;
+      else if (CPM_INFLUENCE_SEATS.has(constNum)) allianceBonus += 5;
+    }
+
+    // JUP+AIMIM alliance bonus in Muslim-majority Murshidabad/Malda seats
+    if (candidate.party === 'JUP' || candidate.party === 'AIMIM') {
+      if (muslimPct > 0.50) allianceBonus += 6;
+      else if (muslimPct > 0.35) allianceBonus += 3;
+    }
+
     // Apply context text adjustment: user-supplied signals shift total score directly
     const contextBonus = ctxAdj[candidate.party] || 0;
-    const totalScore = Math.min(100, Math.max(0, baseScore + contextBonus));
+    // If party has no candidate (excluded via alliance), set score to near-zero so softmax eliminates them
+    const excluded = partyExcluded && partyExcluded[candidate.party];
+    const totalScore = excluded ? 0 : Math.min(100, Math.max(0, baseScore + contextBonus + allianceBonus));
 
     return {
       ...candidate,
@@ -697,7 +952,8 @@ function predictConstituency({ constituency, candidates, historicalData, demogra
   scoredCandidates.sort((a, b) => b.totalScore - a.totalScore);
 
   // Convert scores to vote shares (softmax-like normalization)
-  const expScores = scoredCandidates.map(c => Math.exp((c.totalScore - 40) / 12));
+  // Temperature=15 produces realistic spreads (10-pt gap ≈ 1.9x ratio, 20-pt gap ≈ 3.8x ratio)
+  const expScores = scoredCandidates.map(c => Math.exp((c.totalScore - 40) / 15));
   const sumExp = expScores.reduce((a, b) => a + b, 0);
 
   const allCandidates = scoredCandidates.map((c, i) => ({
@@ -742,4 +998,4 @@ function predictConstituency({ constituency, candidates, historicalData, demogra
   };
 }
 
-module.exports = { predictConstituency };
+module.exports = { predictConstituency, parseContextAdjustments };

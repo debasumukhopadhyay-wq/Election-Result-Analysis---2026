@@ -33,7 +33,6 @@ function buildReasons(
   winner2021Share: number,
   winner2021Margin: number,
   allCandidates: CandidateScore[],
-  swingTrend: Record<string, number>,
 ): Reason[] {
   const reasons: Reason[] = [];
   const incumbent = allCandidates.find(c => c.party === winner2021Party);
@@ -41,14 +40,14 @@ function buildReasons(
 
   // ── 1. Anti-incumbency ───────────────────────────────────────────────────
   if (incumbent) {
-    const aiScore = incumbent.factorScores.antiIncumbency?.score ?? 5;
-    const risk = aiScore < 4 ? 'Very High' : aiScore < 5.5 ? 'High' : 'Moderate';
+    const aiScore = incumbent.factorScores.antiIncumbency?.score ?? 50;
+    const risk = aiScore < 40 ? 'Very High' : aiScore < 55 ? 'High' : 'Moderate';
     reasons.push({
       title: `Anti-Incumbency Against ${winner2021Party}`,
       detail: `${winner2021Candidate} (${winner2021Party}) won in 2021 but now faces ${risk.toLowerCase()} anti-incumbency pressure. ` +
         `After 5 years, voter frustration with delivery gaps typically erodes the incumbent's base. ` +
         `${winner2026.name} (${winner2026.party}) is benefiting from a strong challenger wave.`,
-      metric: `Anti-incumbency score: ${aiScore.toFixed(1)}/10 (lower = stronger against incumbent)`
+      metric: `Anti-incumbency score: ${(aiScore / 10).toFixed(1)}/10 (lower = stronger against incumbent)`
     });
   }
 
@@ -66,43 +65,28 @@ function buildReasons(
     const topGap = gaps[0];
     const secondGap = gaps[1];
 
-    if (topGap && topGap.diff > 0.5) {
+    if (topGap && topGap.diff > 5) {
       reasons.push({
         title: `${winner2026.party} Dominates on ${topGap.label}`,
-        detail: `${winner2026.name} scores ${topGap.challengerScore.toFixed(1)}/10 on ${topGap.label}, ` +
-          `compared to ${incumbent.name}'s ${topGap.incumbentScore.toFixed(1)}/10. ` +
-          `This ${(topGap.diff).toFixed(1)}-point advantage is translating directly into vote share gains for ${winner2026.party}.`,
-        metric: `Gap: +${topGap.diff.toFixed(1)} pts in favour of ${winner2026.party}`
+        detail: `${winner2026.name} scores ${(topGap.challengerScore / 10).toFixed(1)}/10 on ${topGap.label}, ` +
+          `compared to ${incumbent.name}'s ${(topGap.incumbentScore / 10).toFixed(1)}/10. ` +
+          `This ${(topGap.diff / 10).toFixed(1)}-point advantage is translating directly into vote share gains for ${winner2026.party}.`,
+        metric: `Gap: +${(topGap.diff / 10).toFixed(1)} pts in favour of ${winner2026.party}`
       });
     }
 
-    if (secondGap && secondGap.diff > 0.5) {
+    if (secondGap && secondGap.diff > 5) {
       reasons.push({
         title: `${winner2021Party} Weakness: ${secondGap.label}`,
-        detail: `${incumbent.name} (${winner2021Party}) scores only ${secondGap.incumbentScore.toFixed(1)}/10 on ` +
+        detail: `${incumbent.name} (${winner2021Party}) scores only ${(secondGap.incumbentScore / 10).toFixed(1)}/10 on ` +
           `${secondGap.label}, a critical factor in this constituency. ` +
           `This structural weakness allows ${winner2026.party} to consolidate voters who are dissatisfied with ${winner2021Party}'s performance.`,
-        metric: `${winner2021Party} score: ${secondGap.incumbentScore.toFixed(1)}/10 vs ${winner2026.party}: ${secondGap.challengerScore.toFixed(1)}/10`
+        metric: `${winner2021Party} score: ${(secondGap.incumbentScore / 10).toFixed(1)}/10 vs ${winner2026.party}: ${(secondGap.challengerScore / 10).toFixed(1)}/10`
       });
     }
   }
 
-  // ── 3. Swing trend ───────────────────────────────────────────────────────
-  const challengerSwing = swingTrend[winner2026.party] ?? 0;
-  const incumbentSwing  = swingTrend[winner2021Party] ?? 0;
-  if (challengerSwing !== 0 || incumbentSwing !== 0) {
-    const swingDir = challengerSwing > 0 ? 'gained' : 'lost';
-    const incDir   = incumbentSwing  < 0 ? 'declined' : 'grown';
-    reasons.push({
-      title: `Structural Vote Swing Favours ${winner2026.party}`,
-      detail: `Since 2011, ${winner2026.party} has ${swingDir} ${Math.abs(Math.round(challengerSwing * 100))}% in vote share in this constituency, ` +
-        `while ${winner2021Party}'s support has ${incDir} by ${Math.abs(Math.round(incumbentSwing * 100))}%. ` +
-        `This long-term realignment of voters means ${winner2026.party} starts 2026 with a structural edge.`,
-      metric: `${winner2026.party} swing 2011→2021: ${challengerSwing >= 0 ? '+' : ''}${Math.round(challengerSwing * 100)}% | ${winner2021Party}: ${incumbentSwing >= 0 ? '+' : ''}${Math.round(incumbentSwing * 100)}%`
-    });
-  }
-
-  // ── 4. Narrow 2021 victory / momentum ────────────────────────────────────
+  // ── 3. Narrow 2021 victory / momentum ────────────────────────────────────
   const marginVotes = winner2021Margin;
   const marginPct   = Math.round(winner2021Share * 100);
   const isNarrow    = winner2021Share < 0.52;
@@ -118,13 +102,15 @@ function buildReasons(
     // Booth network / organisational reason as fallback
     if (challenger && incumbent) {
       const boothAdv = (challenger.factorScores.boothNetwork?.score ?? 0) - (incumbent.factorScores.boothNetwork?.score ?? 0);
+      const cBoothScore = challenger.factorScores.boothNetwork?.score ?? 0;
+      const iBoothScore = incumbent.factorScores.boothNetwork?.score ?? 0;
       reasons.push({
         title: `${winner2026.party}'s Superior Ground & Booth Network`,
         detail: `${winner2026.party}'s booth-level machinery in this constituency has grown significantly since 2021. ` +
-          `${winner2026.name}'s booth network score (${challenger.factorScores.boothNetwork?.score?.toFixed(1)}/10) ` +
-          `outperforms ${incumbent.name}'s (${incumbent.factorScores.boothNetwork?.score?.toFixed(1)}/10), enabling ` +
+          `${winner2026.name}'s booth network score (${(cBoothScore / 10).toFixed(1)}/10) ` +
+          `outperforms ${incumbent.name}'s (${(iBoothScore / 10).toFixed(1)}/10), enabling ` +
           `superior voter mobilisation and election-day logistics.`,
-        metric: `Booth network advantage: ${boothAdv >= 0 ? '+' : ''}${boothAdv.toFixed(1)} pts for ${winner2026.party}`
+        metric: `Booth network advantage: ${boothAdv >= 0 ? '+' : ''}${(boothAdv / 10).toFixed(1)} pts for ${winner2026.party}`
       });
     }
   }
@@ -137,10 +123,10 @@ function buildReasons(
     reasons.push({
       title: `Candidate Quality: ${winner2026.name} Outscores ${incumbent.name}`,
       detail: `Across all 25 prediction factors, ${winner2026.name} (${winner2026.party}) achieves an overall score of ` +
-        `${cScore.toFixed(1)} vs ${incumbent.name} (${winner2021Party})'s ${iScore.toFixed(1)}. ` +
+        `${(cScore / 10).toFixed(1)}/10 vs ${incumbent.name} (${winner2021Party})'s ${(iScore / 10).toFixed(1)}/10. ` +
         `${winner2026.name}'s stronger community presence, oratory, and local issue alignment collectively explain ` +
         `why the model projects a ${Math.round(winner2026.predictedVoteShare * 100)}% vote share for ${winner2026.party} this cycle.`,
-      metric: `Overall score gap: ${diff >= 0 ? '+' : ''}${diff.toFixed(1)} in favour of ${winner2026.party}`
+      metric: `Overall score gap: ${diff >= 0 ? '+' : ''}${(diff / 10).toFixed(1)} in favour of ${winner2026.party}`
     });
   }
 
@@ -164,7 +150,6 @@ export default function PartyChangePanel({ predictedWinner, allCandidates, histo
     result2021.voteShare,
     election2021.winMargin,
     allCandidates,
-    historicalData.swingTrend,
   );
 
   return (

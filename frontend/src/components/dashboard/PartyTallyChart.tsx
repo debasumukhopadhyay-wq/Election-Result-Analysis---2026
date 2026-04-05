@@ -6,7 +6,7 @@ import { PARTY_COLORS } from '../../types/constituency';
 interface Props { summary: StateSummary }
 
 export default function PartyTallyChart({ summary }: Props) {
-  const data = Object.entries(summary.projections)
+  const partyData = Object.entries(summary.projections)
     .sort((a, b) => b[1].seats - a[1].seats)
     .map(([party, proj]) => ({
       party,
@@ -15,6 +15,19 @@ export default function PartyTallyChart({ summary }: Props) {
       max: proj.maxSeats,
       voteShare: Math.round(proj.voteShare * 100)
     }));
+
+  // Add CPM+ISF alliance combined bar
+  const cpm = summary.projections['CPM'];
+  const isf = summary.projections['ISF'];
+  const allianceEntry = (cpm && isf) ? [{
+    party: 'CPM+ISF',
+    seats: (cpm.seats || 0) + (isf.seats || 0),
+    min: (cpm.minSeats || 0) + (isf.minSeats || 0),
+    max: (cpm.maxSeats || 0) + (isf.maxSeats || 0),
+    voteShare: Math.round(((cpm.voteShare || 0) + (isf.voteShare || 0)) * 100)
+  }] : [];
+
+  const data = [...partyData, ...allianceEntry];
 
   return (
     <div className="card">

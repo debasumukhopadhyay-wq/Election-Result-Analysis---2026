@@ -6,9 +6,12 @@ interface Props { summary: StateSummary }
 export default function MajorityMeter({ summary }: Props) {
   const { majorityProbability, projections } = summary;
 
+  const cpmIsf = (projections.CPM?.seats || 0) + (projections.ISF?.seats || 0);
+
   const items = [
     { party: 'TMC', prob: majorityProbability.TMC, color: '#20B2AA', seats: projections.TMC?.seats || 0 },
     { party: 'BJP', prob: majorityProbability.BJP, color: '#FF6B00', seats: projections.BJP?.seats || 0 },
+    { party: 'CPM+ISF', prob: 0, color: '#B91C1C', seats: cpmIsf },
     { party: 'Hung', prob: majorityProbability.hung, color: '#9CA3AF', seats: null }
   ];
 

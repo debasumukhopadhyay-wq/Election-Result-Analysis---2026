@@ -62,6 +62,9 @@ export const PARTY_COLORS: Record<string, string> = {
   CPM: '#DC2626',
   INC: '#1E40AF',
   ISF: '#7C3AED',
+  JUP: '#166534',
+  AIMIM: '#065F46',
+  'CPM+ISF': '#B91C1C',
   IND: '#6B7280'
 };
 
@@ -71,5 +74,7 @@ export const PARTY_FULL_NAMES: Record<string, string> = {
   CPM: 'Communist Party of India (Marxist)',
   INC: 'Indian National Congress',
   ISF: 'Indian Secular Front',
+  JUP: 'Jamiat Ulema Party',
+  AIMIM: 'All India Majlis-e-Ittehadul Muslimeen',
   IND: 'Independent'
 };

@@ -355,6 +355,8 @@ const CONST_DISTRICT_MAP = [
   "Murshidabad","Murshidabad","Murshidabad","Murshidabad",
 ];
 
+const { REAL_2021 } = require('./real2021Results');
+
 // Build the full historical results object
 const historicalResults = {};
 
@@ -362,15 +364,16 @@ for (let num = 1; num <= 294; num++) {
   const id = `WB-${String(num).padStart(3, "0")}`;
   const district = CONST_DISTRICT_MAP[num] || "Murshidabad";
 
-  const elections = [
-    generateYearResult(num, district, 2021),
-    generateYearResult(num, district, 2016),
-    generateYearResult(num, district, 2011),
-  ];
+  let election2021 = generateYearResult(num, district, 2021);
+
+  // Override 2021 with real results where available
+  if (REAL_2021[num]) {
+    const real = REAL_2021[num];
+    election2021 = { year: 2021, results: real.results, turnout: real.turnout, winMargin: real.winMargin };
+  }
 
   historicalResults[id] = {
-    elections,
-    swingTrend: computeSwingTrend(elections),
+    elections: [election2021],
   };
 }
 

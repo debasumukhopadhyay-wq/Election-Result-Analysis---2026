@@ -8,7 +8,7 @@ export default function DataQualityIndicator({ quality, aiEnabled = true }: Prop
     medium: { color: 'text-yellow-600', bg: 'bg-yellow-50 border-yellow-200', icon: '◐', label: 'Medium Data Quality' },
     low: { color: 'text-red-600', bg: 'bg-red-50 border-red-200', icon: '○', label: 'Low Data Quality' }
   };
-  const c = config[quality];
+  const c = config[quality] ?? config['medium'];
   return (
     <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs ${c.bg}`}>
       <span className={c.color}>{c.icon}</span>

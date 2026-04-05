@@ -9,28 +9,6 @@ function getClient() {
   return client;
 }
 
-const SYSTEM_PROMPT = `You are an expert political analyst specializing in West Bengal Assembly Elections.
-You analyze structured election prediction data and provide expert political insights.
-
-You will receive JSON data with constituency information, candidate scores across 25 factors, and historical data.
-You must respond with a valid JSON object matching this exact schema:
-{
-  "narrative": "3-paragraph string explaining the prediction in detail",
-  "keyFactors": ["array of 3-5 key influencing factors as strings"],
-  "candidateInsights": {
-    "<candidateId>": {
-      "strengths": ["array of 2-4 strength strings"],
-      "weaknesses": ["array of 2-4 weakness strings"],
-      "improvementStrategy": "single string with tactical advice"
-    }
-  },
-  "confidenceAdjustment": <integer -10 to +10>,
-  "dataQuality": "high" | "medium" | "low",
-  "missingDataIndicators": ["array of strings listing what data is missing or uncertain"]
-}
-
-Important: Always respond with ONLY valid JSON. No markdown, no explanation outside JSON.`;
-
 function generateFallbackReasoning({ constituencyName, candidateScores, historicalData }) {
   const winner = candidateScores[0];
   const runnerUp = candidateScores[1];
@@ -119,45 +97,65 @@ async function generateAIReasoning({ constituency, candidateScores, historicalDa
     userContext: contextText || 'No additional context provided'
   };
 
+  // Tool schema — forces Claude to return guaranteed-valid JSON via function calling
+  const ANALYSIS_TOOL = {
+    name: 'provide_election_analysis',
+    description: 'Provide structured election analysis for a West Bengal constituency',
+    input_schema: {
+      type: 'object',
+      properties: {
+        narrative: { type: 'string', description: '3-paragraph expert analysis of the prediction' },
+        keyFactors: { type: 'array', items: { type: 'string' }, description: '3-5 key influencing factors' },
+        candidateInsights: {
+          type: 'object',
+          description: 'Per-candidate insights keyed by candidateId',
+          additionalProperties: {
+            type: 'object',
+            properties: {
+              strengths: { type: 'array', items: { type: 'string' } },
+              weaknesses: { type: 'array', items: { type: 'string' } },
+              improvementStrategy: { type: 'string' }
+            },
+            required: ['strengths', 'weaknesses', 'improvementStrategy']
+          }
+        },
+        confidenceAdjustment: { type: 'integer', description: 'Adjustment to confidence score (-10 to +10)' },
+        dataQuality: { type: 'string', enum: ['high', 'medium', 'low'] },
+        missingDataIndicators: { type: 'array', items: { type: 'string' } }
+      },
+      required: ['narrative', 'keyFactors', 'candidateInsights', 'confidenceAdjustment', 'dataQuality', 'missingDataIndicators']
+    }
+  };
+
   try {
     const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Claude API timeout')), 25000)
+      setTimeout(() => reject(new Error('Claude API timeout')), 45000)
     );
 
     const claudePromise = anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 1200,
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 2500,
       temperature: 0.3,
-      system: SYSTEM_PROMPT,
+      tools: [ANALYSIS_TOOL],
+      tool_choice: { type: 'tool', name: 'provide_election_analysis' },
       messages: [
         {
           role: 'user',
-          content: `Analyze this West Bengal constituency prediction data and provide expert political insights:
+          content: `Analyze this West Bengal constituency prediction data and call provide_election_analysis with your expert insights:
 
-PREDICTION_DATA: ${JSON.stringify(promptData)}
-
-Generate the aiReasoning JSON object with narrative, keyFactors, candidateInsights, confidenceAdjustment, dataQuality, and missingDataIndicators.`
+PREDICTION_DATA: ${JSON.stringify(promptData)}`
         }
       ]
     });
 
     const message = await Promise.race([claudePromise, timeoutPromise]);
 
-    const responseText = message.content[0].text;
+    // Tool use response — input is guaranteed valid JSON
+    const toolUse = message.content.find(b => b.type === 'tool_use');
+    if (toolUse) return toolUse.input;
 
-    // Parse JSON response
-    try {
-      const parsed = JSON.parse(responseText);
-      return parsed;
-    } catch (parseError) {
-      // Try to extract JSON from response
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        return JSON.parse(jsonMatch[0]);
-      }
-      console.error('Failed to parse Claude response as JSON, using fallback');
-      return generateFallbackReasoning({ constituencyName: constituency.name, candidateScores, historicalData });
-    }
+    console.error('No tool_use block in Claude response');
+    return generateFallbackReasoning({ constituencyName: constituency.name, candidateScores, historicalData });
   } catch (error) {
     if (error.status === 429) {
       console.log('Rate limited by Claude API, waiting 2s...');
@@ -165,13 +163,16 @@ Generate the aiReasoning JSON object with narrative, keyFactors, candidateInsigh
       try {
         // One retry
         const retryMessage = await anthropic.messages.create({
-          model: 'claude-sonnet-4-6',
+          model: 'claude-haiku-4-5-20251001',
           max_tokens: 1500,
           temperature: 0.3,
-          system: SYSTEM_PROMPT,
+          tools: [ANALYSIS_TOOL],
+          tool_choice: { type: 'tool', name: 'provide_election_analysis' },
           messages: [{ role: 'user', content: `Analyze: ${JSON.stringify(promptData)}` }]
         });
-        return JSON.parse(retryMessage.content[0].text);
+        const retryTool = retryMessage.content.find(b => b.type === 'tool_use');
+        if (retryTool) return retryTool.input;
+        throw new Error('No tool_use in retry');
       } catch (retryError) {
         return generateFallbackReasoning({ constituencyName: constituency.name, candidateScores, historicalData });
       }

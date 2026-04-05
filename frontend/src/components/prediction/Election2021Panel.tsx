@@ -30,7 +30,6 @@ function partyColor(party: string) {
 
 export default function Election2021Panel({ data, constituencyName }: Props) {
   const election2021 = data.elections.find(e => e.year === 2021);
-  const election2016 = data.elections.find(e => e.year === 2016);
 
   if (!election2021) {
     return (
@@ -42,13 +41,11 @@ export default function Election2021Panel({ data, constituencyName }: Props) {
 
   const winner = election2021.results.find(r => r.winner);
   const runnerUp = election2021.results[1];
-  const topFour = election2021.results.slice(0, 4);
+  const topFour = election2021.results.filter(r => r.voteShare >= 0.03);
 
   const marginPct = winner && runnerUp
     ? Math.round((winner.voteShare - runnerUp.voteShare) * 100)
     : 0;
-
-  const winner2016 = election2016?.results.find(r => r.winner);
 
   return (
     <div className="card h-full">
@@ -112,49 +109,14 @@ export default function Election2021Panel({ data, constituencyName }: Props) {
         ))}
       </div>
 
-      {/* Runner-up and 2016 comparison */}
-      <div className="grid grid-cols-2 gap-3 pt-3 border-t border-gray-100">
-        <div>
+      {/* Runner-up */}
+      {runnerUp && (
+        <div className="pt-3 border-t border-gray-100">
           <p className="text-xs text-gray-400 mb-0.5">Runner-up 2021</p>
-          {runnerUp && (
-            <p className="text-xs font-semibold text-gray-700">
-              <span style={{ color: partyColor(runnerUp.party) }}>{runnerUp.party}</span>
-              {' · '}{Math.round(runnerUp.voteShare * 100)}%
-            </p>
-          )}
-        </div>
-        <div>
-          <p className="text-xs text-gray-400 mb-0.5">2016 Winner</p>
-          {winner2016 ? (
-            <p className="text-xs font-semibold text-gray-700">
-              <span style={{ color: partyColor(winner2016.party) }}>{winner2016.party}</span>
-              {' · '}{winner2016.candidate}
-            </p>
-          ) : (
-            <p className="text-xs text-gray-400">—</p>
-          )}
-        </div>
-      </div>
-
-      {/* Swing trend note */}
-      {data.swingTrend && (
-        <div className="mt-3 pt-3 border-t border-gray-100">
-          <p className="text-xs text-gray-400 mb-1">Swing 2011→2021</p>
-          <div className="flex gap-3 flex-wrap">
-            {Object.entries(data.swingTrend)
-              .filter(([, v]) => Math.abs(v) > 0.01)
-              .sort(([, a], [, b]) => Math.abs(b) - Math.abs(a))
-              .slice(0, 4)
-              .map(([party, swing]) => (
-                <span key={party} className="text-xs font-semibold">
-                  <span style={{ color: partyColor(party) }}>{party}</span>
-                  {' '}
-                  <span className={swing >= 0 ? 'text-green-600' : 'text-red-600'}>
-                    {swing >= 0 ? '+' : ''}{Math.round(swing * 100)}%
-                  </span>
-                </span>
-              ))}
-          </div>
+          <p className="text-xs font-semibold text-gray-700">
+            <span style={{ color: partyColor(runnerUp.party) }}>{runnerUp.party}</span>
+            {' · '}{runnerUp.candidate}{' · '}{Math.round(runnerUp.voteShare * 100)}%
+          </p>
         </div>
       )}
     </div>

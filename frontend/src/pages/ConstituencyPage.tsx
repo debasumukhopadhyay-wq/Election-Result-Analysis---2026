@@ -12,6 +12,7 @@ import WinnerCard from '../components/prediction/WinnerCard';
 import FactorBreakdown from '../components/prediction/FactorBreakdown';
 import VoteShareChart from '../components/prediction/VoteShareChart';
 import AIReasoningPanel from '../components/prediction/AIReasoningPanel';
+import TMCActionPoints from '../components/prediction/TMCActionPoints';
 import BoothHeatmap from '../components/booth/BoothHeatmap';
 import SwingGraph from '../components/booth/SwingGraph';
 import SwingRiskPanel from '../components/prediction/SwingRiskPanel';
@@ -19,6 +20,7 @@ import DemographicsPanel from '../components/prediction/DemographicsPanel';
 import Election2021Panel from '../components/prediction/Election2021Panel';
 import PartyChangePanel from '../components/prediction/PartyChangePanel';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
+import PdfDownloadButton from '../components/shared/PdfDownloadButton';
 import type { ConstituencyListItem } from '../api/constituencyApi';
 
 export default function ConstituencyPage() {
@@ -89,13 +91,22 @@ export default function ConstituencyPage() {
           </div>
         </div>
         <WeightAdjuster onChange={setCustomWeights} />
-        <button
-          onClick={() => id && handleRunPrediction(id)}
-          disabled={status === 'loading' || !id}
-          className="btn-primary"
-        >
-          {status === 'loading' ? 'Predicting...' : 'Re-run Prediction'}
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => id && handleRunPrediction(id)}
+            disabled={status === 'loading' || !id}
+            className="btn-primary"
+          >
+            {status === 'loading' ? 'Predicting...' : 'Re-run Prediction'}
+          </button>
+          {status === 'success' && result && (
+            <PdfDownloadButton
+              elementId="constituency-result"
+              filename={`WB-Election-2026-${result.constituencyName.replace(/\s+/g, '-')}.pdf`}
+              label="Print / Save PDF"
+            />
+          )}
+        </div>
       </div>
 
       {/* Loading */}
@@ -113,7 +124,7 @@ export default function ConstituencyPage() {
 
       {/* Results */}
       {status === 'success' && result && (
-        <>
+        <div id="constituency-result">
           {/* 2026 Prediction (left) + 2021 Actual Result (right) */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <WinnerCard
@@ -172,6 +183,38 @@ export default function ConstituencyPage() {
           </div>
 
           {/* Candidate table */}
+          {/* Alliance Summary — CPM + ISF */}
+          {(() => {
+            const cpm = result.allCandidates.find(c => c.party === 'CPM');
+            const isf = result.allCandidates.find(c => c.party === 'ISF');
+            if (!cpm && !isf) return null;
+            const combinedVoteShare = ((cpm?.predictedVoteShare || 0) + (isf?.predictedVoteShare || 0));
+            const combinedScore = Math.max(cpm?.totalScore || 0, isf?.totalScore || 0);
+            return (
+              <div className="card" style={{ borderLeft: '4px solid #DC2626', background: 'linear-gradient(135deg, #FEF2F2 0%, #FFF7ED 100%)' }}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-sm font-bold text-red-800">Alliance: CPM + ISF</span>
+                  <span className="text-xs bg-red-100 text-red-700 font-semibold px-2 py-0.5 rounded-full">Combined Vote Share: {Math.round(combinedVoteShare * 100)}%</span>
+                </div>
+                <div className="grid grid-cols-3 gap-3 text-sm">
+                  <div>
+                    <p className="text-xs text-gray-500">CPM Vote Share</p>
+                    <p className="font-semibold text-red-700">{cpm ? Math.round(cpm.predictedVoteShare * 100) : 0}%</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">ISF Vote Share</p>
+                    <p className="font-semibold text-orange-600">{isf ? Math.round(isf.predictedVoteShare * 100) : 0}%</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Alliance Best Score</p>
+                    <p className="font-semibold text-gray-700">{combinedScore.toFixed(1)}</p>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 mt-2">CPM and ISF are contesting as formal allies in 2026. Combined vote share reflects alliance strength.</p>
+              </div>
+            );
+          })()}
+
           <div className="card">
             <h3 className="text-sm font-semibold text-gray-700 mb-3">All Candidates</h3>
             <div className="overflow-x-auto">
@@ -197,6 +240,9 @@ export default function ConstituencyPage() {
                         <span className="party-badge" style={{ backgroundColor: '#6B7280' }}>
                           {c.party}
                         </span>
+                        {(c.party === 'CPM' || c.party === 'ISF') && (
+                          <span className="text-xs text-red-600 ml-1" title="CPM + ISF Alliance">*</span>
+                        )}
                       </td>
                       <td className="py-2 text-right font-mono text-gray-700">{c.totalScore.toFixed(1)}</td>
                       <td className="py-2 text-right font-bold text-gray-900">{Math.round(c.predictedVoteShare * 100)}%</td>
@@ -207,8 +253,15 @@ export default function ConstituencyPage() {
                 </tbody>
               </table>
             </div>
+            <p className="text-xs text-gray-400 mt-2">* CPM + ISF Alliance</p>
           </div>
-        </>
+
+          {/* TMC Action Points — included in PDF export */}
+          <TMCActionPoints
+            allCandidates={result.allCandidates}
+            constituencyName={result.constituencyName}
+          />
+        </div>
       )}
     </div>
   );

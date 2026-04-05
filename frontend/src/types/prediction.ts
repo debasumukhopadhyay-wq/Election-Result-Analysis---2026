@@ -127,7 +127,6 @@ export interface HistoricalElection {
 
 export interface HistoricalData {
   elections: HistoricalElection[];
-  swingTrend: Record<string, number>;
 }
 
 export interface PredictionResult {

@@ -426,46 +426,96 @@ const getHistoricalWinners = (num, district, category) => {
 
   return [
     { year: 2021, party: w2021, candidate: getCandidateName(w2021, nameIdx), voteShare: w2021 === "TMC" ? tmcBase2021 : bjpBase2021 },
-    { year: 2016, party: w2016, candidate: getCandidateName(w2016, nameIdx + 1), voteShare: w2016 === "TMC" ? tmcBase2016 : cpmBase2016 },
-    { year: 2011, party: w2011, candidate: getCandidateName(w2011, nameIdx + 2), voteShare: w2011 === "TMC" ? tmcBase2011 : cpmBase2011 },
   ];
 };
 
 const getPartyStrength = (num, district, historicalWinners) => {
-  // ISF only contests in South 24 Parganas in 2026
-  const isISFDistrict = district === "South 24 Parganas";
-  // Muslim-majority districts where TMC dominates, CPM/INC second, BJP third, ISF near zero
+  // CPM + ISF formal alliance in 2026: ISF contests in Muslim-majority & high-Muslim areas
+  const isISFDistrict = ["South 24 Parganas", "Murshidabad", "Malda", "Uttar Dinajpur",
+    "North 24 Parganas", "Birbhum", "Nadia", "Dakshin Dinajpur"].includes(district);
+  // Muslim-majority districts where CPM+ISF alliance is strongest
   const isMuslimMajority = ["Murshidabad", "Uttar Dinajpur", "Malda"].includes(district);
+  // Districts with significant Muslim population where alliance has impact
+  const isHighMuslim = ["South 24 Parganas", "Birbhum", "North 24 Parganas", "Nadia", "Dakshin Dinajpur"].includes(district);
   const winner2021 = historicalWinners[0].party;
   const r = seed(num * 17 + 9);
 
   let tmc, bjp, cpm, inc, isf;
 
-  if (isMuslimMajority) {
-    // TMC-dominant Muslim-majority districts: TMC 0.45-0.55, CPM 0.20-0.28, BJP 0.15-0.22, INC 0.05-0.10, ISF ~0
-    tmc = parseFloat((0.45 + r * 0.10).toFixed(2));
-    cpm = parseFloat((0.20 + seed(num * 19) * 0.08).toFixed(2));
-    bjp = parseFloat((0.15 + seed(num * 23) * 0.07).toFixed(2));
-    inc = parseFloat((0.05 + seed(num * 29) * 0.05).toFixed(2));
-    isf = parseFloat((0.01).toFixed(2));  // ISF does not contest here in 2026
+  // ── INC STRONGHOLD: Baharampur belt (63-70) — Adhir Chowdhury's influence zone ──
+  const INC_STRONGHOLD = [63, 64, 65, 66, 67, 68, 69, 70];
+  const INC_INFLUENCE = [55, 56, 57, 58, 71, 72, 73, 74, 75, 76]; // Extended Murshidabad
+  if (INC_STRONGHOLD.includes(num)) {
+    // Congress is the strongest party in Baharampur area
+    inc = parseFloat((0.32 + seed(num * 29) * 0.10).toFixed(2)); // INC dominant
+    tmc = parseFloat((0.28 + r * 0.08).toFixed(2));
+    bjp = parseFloat((0.06 + seed(num * 23) * 0.06).toFixed(2));
+    cpm = parseFloat((0.08 + seed(num * 19) * 0.06).toFixed(2));
+    isf = parseFloat((0.04 + seed(num * 31) * 0.04).toFixed(2));
+  } else if (INC_INFLUENCE.includes(num)) {
+    // Congress competitive but TMC still leads
+    inc = parseFloat((0.18 + seed(num * 29) * 0.08).toFixed(2));
+    tmc = parseFloat((0.34 + r * 0.08).toFixed(2));
+    bjp = parseFloat((0.06 + seed(num * 23) * 0.06).toFixed(2));
+    cpm = parseFloat((0.10 + seed(num * 19) * 0.06).toFixed(2));
+    isf = parseFloat((0.06 + seed(num * 31) * 0.04).toFixed(2));
+  }
+  // ── CPM STRONGHOLDS: Industrial belt, tribal areas, traditional Left pockets ──
+  else if ([271, 272, 273, 274, 275].includes(num)) {
+    // Paschim Bardhaman — Asansol/Durgapur industrial belt, Left traditional base
+    cpm = parseFloat((0.28 + seed(num * 19) * 0.10).toFixed(2));
+    tmc = parseFloat((0.26 + r * 0.08).toFixed(2));
+    bjp = parseFloat((0.24 + seed(num * 23) * 0.10).toFixed(2));
+    inc = parseFloat((0.04 + seed(num * 29) * 0.04).toFixed(2));
+    isf = parseFloat((0.02).toFixed(2));
+  } else if ([223, 224, 225, 226, 238, 239, 240, 250, 251, 252].includes(num)) {
+    // Jhargram/Bankura/Purulia — tribal/Left traditional base
+    cpm = parseFloat((0.24 + seed(num * 19) * 0.10).toFixed(2));
+    tmc = parseFloat((0.30 + r * 0.08).toFixed(2));
+    bjp = parseFloat((0.22 + seed(num * 23) * 0.10).toFixed(2));
+    inc = parseFloat((0.04 + seed(num * 29) * 0.04).toFixed(2));
+    isf = parseFloat((0.02).toFixed(2));
+  } else if ([26, 259, 260, 261].includes(num)) {
+    // Siliguri + Purba Bardhaman — Left pockets
+    cpm = parseFloat((0.26 + seed(num * 19) * 0.08).toFixed(2));
+    tmc = parseFloat((0.28 + r * 0.08).toFixed(2));
+    bjp = parseFloat((0.24 + seed(num * 23) * 0.10).toFixed(2));
+    inc = parseFloat((0.04 + seed(num * 29) * 0.04).toFixed(2));
+    isf = parseFloat((0.02).toFixed(2));
+  }
+  // ── Default regional profiles ──
+  else if (isMuslimMajority) {
+    // TMC dominant in Muslim areas but facing challenge from ISF/CPM alliance + INC pockets
+    tmc = parseFloat((0.36 + r * 0.08).toFixed(2));
+    cpm = parseFloat((0.10 + seed(num * 19) * 0.06).toFixed(2));
+    isf = parseFloat((0.08 + seed(num * 31) * 0.06).toFixed(2)); // ISF growing
+    bjp = parseFloat((0.08 + seed(num * 23) * 0.06).toFixed(2));
+    inc = parseFloat((0.10 + seed(num * 29) * 0.06).toFixed(2));
+  } else if (isHighMuslim) {
+    tmc = parseFloat((0.34 + r * 0.10).toFixed(2));
+    cpm = parseFloat((0.10 + seed(num * 19) * 0.06).toFixed(2));
+    isf = parseFloat((0.06 + seed(num * 31) * 0.04).toFixed(2));
+    bjp = parseFloat((0.22 + seed(num * 23) * 0.10).toFixed(2));
+    inc = parseFloat((0.06 + seed(num * 29) * 0.04).toFixed(2));
   } else if (winner2021 === "TMC") {
-    tmc = parseFloat((0.44 + r * 0.12).toFixed(2));
-    bjp = parseFloat((0.20 + seed(num * 23) * 0.14).toFixed(2));
-    cpm = parseFloat((0.06 + seed(num * 19) * 0.08).toFixed(2));
-    inc = parseFloat((0.04 + seed(num * 29) * 0.06).toFixed(2));
-    isf = isISFDistrict ? parseFloat((0.04 + seed(num * 31) * 0.06).toFixed(2)) : parseFloat((0.01).toFixed(2));
+    tmc = parseFloat((0.34 + r * 0.10).toFixed(2));
+    bjp = parseFloat((0.28 + seed(num * 23) * 0.12).toFixed(2));
+    cpm = parseFloat((0.10 + seed(num * 19) * 0.08).toFixed(2)); // CPM reviving in general seats
+    inc = parseFloat((0.04 + seed(num * 29) * 0.04).toFixed(2));
+    isf = isISFDistrict ? parseFloat((0.03 + seed(num * 31) * 0.04).toFixed(2)) : parseFloat((0.01).toFixed(2));
   } else if (winner2021 === "BJP") {
-    bjp = parseFloat((0.42 + r * 0.12).toFixed(2));
-    tmc = parseFloat((0.32 + seed(num * 23) * 0.10).toFixed(2));
-    cpm = parseFloat((0.06 + seed(num * 19) * 0.07).toFixed(2));
-    inc = parseFloat((0.03 + seed(num * 29) * 0.05).toFixed(2));
-    isf = parseFloat((0.01).toFixed(2));
+    bjp = parseFloat((0.38 + r * 0.10).toFixed(2));
+    tmc = parseFloat((0.28 + seed(num * 23) * 0.10).toFixed(2));
+    cpm = parseFloat((0.10 + seed(num * 19) * 0.08).toFixed(2)); // CPM reviving
+    inc = parseFloat((0.04 + seed(num * 29) * 0.04).toFixed(2));
+    isf = isISFDistrict ? parseFloat((0.03 + seed(num * 31) * 0.04).toFixed(2)) : parseFloat((0.01).toFixed(2));
   } else {
-    tmc = parseFloat((0.38 + r * 0.08).toFixed(2));
-    bjp = parseFloat((0.18 + seed(num * 23) * 0.10).toFixed(2));
-    cpm = parseFloat((0.14 + seed(num * 19) * 0.08).toFixed(2));
-    inc = parseFloat((0.06 + seed(num * 29) * 0.06).toFixed(2));
-    isf = isISFDistrict ? parseFloat((0.08 + seed(num * 31) * 0.06).toFixed(2)) : parseFloat((0.01).toFixed(2));
+    // CPM/Other won in 2021 — Left strongholds
+    tmc = parseFloat((0.28 + r * 0.08).toFixed(2));
+    bjp = parseFloat((0.16 + seed(num * 23) * 0.10).toFixed(2));
+    cpm = parseFloat((0.24 + seed(num * 19) * 0.10).toFixed(2)); // Strong in Left seats
+    inc = parseFloat((0.06 + seed(num * 29) * 0.04).toFixed(2));
+    isf = isISFDistrict ? parseFloat((0.08 + seed(num * 31) * 0.06).toFixed(2)) : parseFloat((0.02).toFixed(2));
   }
 
   // Normalize to sum = 1.0

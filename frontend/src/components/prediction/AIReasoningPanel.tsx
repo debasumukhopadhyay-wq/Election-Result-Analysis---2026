@@ -6,8 +6,23 @@ interface Props {
   reasoning: AIReasoning;
 }
 
+function toArray(val: any): any[] {
+  if (Array.isArray(val)) return val;
+  if (val == null) return [];
+  return [];
+}
+
+function toObject(val: any): Record<string, any> {
+  if (val && typeof val === 'object' && !Array.isArray(val)) return val;
+  return {};
+}
+
 export default function AIReasoningPanel({ reasoning }: Props) {
   const [expandedCandidate, setExpandedCandidate] = useState<string | null>(null);
+
+  const keyFactors = toArray(reasoning.keyFactors);
+  const missingData = toArray(reasoning.missingDataIndicators);
+  const candidateInsights = toObject(reasoning.candidateInsights);
 
   return (
     <div className="card space-y-4">
@@ -18,21 +33,21 @@ export default function AIReasoningPanel({ reasoning }: Props) {
 
       <p className="text-sm text-gray-700 leading-relaxed">{reasoning.narrative}</p>
 
-      {reasoning.keyFactors.length > 0 && (
+      {keyFactors.length > 0 && (
         <div>
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Key Influencing Factors</p>
           <ul className="space-y-1">
-            {reasoning.keyFactors.map((factor, i) => (
+            {keyFactors.map((factor, i) => (
               <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
                 <span className="text-blue-500 mt-0.5 shrink-0">&#9658;</span>
-                {factor}
+                {String(factor)}
               </li>
             ))}
           </ul>
         </div>
       )}
 
-      {Object.entries(reasoning.candidateInsights).slice(0, 3).map(([id, insight]) => (
+      {Object.entries(candidateInsights).slice(0, 3).map(([id, insight]) => (
         <div key={id} className="border border-gray-100 rounded-lg overflow-hidden">
           <button
             type="button"
@@ -49,29 +64,33 @@ export default function AIReasoningPanel({ reasoning }: Props) {
               <div>
                 <p className="text-xs font-semibold text-green-700 mb-1">Strengths</p>
                 <ul className="space-y-0.5">
-                  {insight.strengths.map((s, i) => <li key={i} className="text-xs text-gray-600 flex gap-1.5"><span className="text-green-500">+</span>{s}</li>)}
+                  {toArray(insight?.strengths).map((s, i) => (
+                    <li key={i} className="text-xs text-gray-600 flex gap-1.5"><span className="text-green-500">+</span>{String(s)}</li>
+                  ))}
                 </ul>
               </div>
               <div>
                 <p className="text-xs font-semibold text-red-700 mb-1">Weaknesses</p>
                 <ul className="space-y-0.5">
-                  {insight.weaknesses.map((w, i) => <li key={i} className="text-xs text-gray-600 flex gap-1.5"><span className="text-red-500">-</span>{w}</li>)}
+                  {toArray(insight?.weaknesses).map((w, i) => (
+                    <li key={i} className="text-xs text-gray-600 flex gap-1.5"><span className="text-red-500">-</span>{String(w)}</li>
+                  ))}
                 </ul>
               </div>
               <div className="bg-blue-50 rounded-md p-2">
                 <p className="text-xs font-semibold text-blue-700 mb-1">Strategy</p>
-                <p className="text-xs text-blue-800">{insight.improvementStrategy}</p>
+                <p className="text-xs text-blue-800">{insight?.improvementStrategy}</p>
               </div>
             </div>
           )}
         </div>
       ))}
 
-      {reasoning.missingDataIndicators.length > 0 && (
+      {missingData.length > 0 && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
           <p className="text-xs font-semibold text-yellow-700 mb-1">Data Gaps</p>
-          {reasoning.missingDataIndicators.map((m, i) => (
-            <p key={i} className="text-xs text-yellow-700">• {m}</p>
+          {missingData.map((m, i) => (
+            <p key={i} className="text-xs text-yellow-700">• {String(m)}</p>
           ))}
         </div>
       )}

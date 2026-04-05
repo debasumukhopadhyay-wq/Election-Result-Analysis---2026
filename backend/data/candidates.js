@@ -55,17 +55,35 @@ const getFullName = (n, party, isMuslimMajority) => {
 // Muslim-majority districts
 const MUSLIM_MAJORITY_DISTRICTS = ["Murshidabad", "Uttar Dinajpur", "Malda"];
 
-// District party tendencies for determining whether ISF or INC contests as 4th candidate
-// ISF only contests in South 24 Parganas (and a handful of North 24 Parganas seats) in 2026
-const ISF_DISTRICTS = ["South 24 Parganas"];
+// ── JUP + AIMIM PRESENCE ────────────────────────────────────────────────────
+// JUP (Jamiat Ulema Party) and AIMIM contest in Muslim-dominated seats of
+// Murshidabad and Malda, splitting the Muslim vote and weakening TMC.
+// These are NOT alliance partners of CPM/ISF — they are independent Muslim parties.
+const JUP_AIMIM_SEATS = new Set([
+  // Murshidabad — JUP strong in high-Muslim constituencies
+  55, 56, 57, 58, 59, 60, 61, 62, 69, 70, 71, 72, 73, 74, 75, 291, 293, 294,
+  // Malda — AIMIM/JUP presence in Muslim-majority seats
+  45, 46, 47, 48, 50, 51,
+]);
+
+// ── CPM-ISF SEAT SHARING ALLIANCE ───────────────────────────────────────────
+// Where ISF contests, CPM does NOT contest, and vice versa.
+// This is the actual Left-ISF front seat-sharing arrangement.
+// ISF contests ~23 seats (Muslim-concentrated pockets); CPM contests the rest.
+const ISF_SEAT_NUMBERS = new Set([
+  53, 78, 80, 89, 97, 101, 102, 103, 110, 118, 120, 121, 125,
+  130, 138, 139, 142, 148, 159, 184, 202, 205, 210, 234, 268, 286, 294
+]);
 
 // Generate candidates for a single constituency
 const generateCandidates = (constId, constNum, district) => {
   const isMuslimMajority = MUSLIM_MAJORITY_DISTRICTS.includes(district);
-  const useISF = ISF_DISTRICTS.includes(district) && seed(constNum * 137) > 0.55;
-  const fourthParty = useISF ? "ISF" : "INC";
 
-  const parties = ["TMC", "BJP", "CPM", fourthParty];
+  // Seat-sharing: ISF seats get ISF instead of CPM; CPM seats get CPM instead of ISF
+  const isISFSeat = ISF_SEAT_NUMBERS.has(constNum);
+  const allianceParty = isISFSeat ? "ISF" : "CPM";
+
+  const parties = ["TMC", "BJP", allianceParty, "INC"];
   const candidates = [];
 
   parties.forEach((party, pIdx) => {
@@ -1002,18 +1020,69 @@ CONSTITUENCY_INDEX.forEach(([num, , district]) => {
       }
     }
 
-    // Mark INC/IND as TBD when no verified real data exists
+    // Mark IND as TBD when no verified real data exists
     const hasRealName = realData && (
       realData[c.party] ||
       (c.party === 'CPM' && LEFT_FRONT_PARTIES.some(lp => realData[lp]))
     );
-    if (!hasRealName && (c.party === 'INC' || c.party === 'IND')) {
-      c.name = c.party === 'INC' ? 'INC Candidate (TBD)' : 'Independent Candidate (TBD)';
+    if (!hasRealName && c.party === 'IND') {
+      c.name = 'Independent Candidate (TBD)';
       c.nameUnverified = true;
     }
 
     allCandidates.push(c);
   });
+
+  // Add extra alliance candidate if present in real data but not in generated candidates
+  // (e.g., ISF candidate in a CPM-primary seat as additional contestant)
+  ['ISF', 'CPM'].forEach(extraParty => {
+    if (realData && realData[extraParty] && !candidates.some(c => c.party === extraParty)) {
+      const baseN = num * 200 + (extraParty === 'ISF' ? 5 : 6) * 50;
+      allCandidates.push({
+        id: `CAND-${String(num).padStart(3, "0")}-${extraParty}`,
+        constituencyId: constId,
+        name: realData[extraParty],
+        party: extraParty,
+        age: seededRandInt(baseN + 1, 30, 60),
+        education: EDUCATIONS[seededRandInt(baseN + 2, 1, 3)],
+        criminalCases: seededRandInt(baseN + 3, 0, 2),
+        isLocalResident: true,
+        termCount: 0,
+        oratoryScore: seededRandFloat(baseN + 8, 3.0, 6.0),
+        popularityIndex: seededRandFloat(baseN + 6, 2.5, 5.5),
+        developmentScore: seededRandFloat(baseN + 7, 2.0, 5.0),
+        antiIncumbencyRisk: 0.05,
+        demographicAlignmentScore: parseFloat((0.25 + seed(baseN + 10) * 0.40).toFixed(2)),
+      });
+    }
+  });
+
+  // Add JUP/AIMIM candidate in Muslim-dominated Murshidabad/Malda seats
+  // These parties split the Muslim vote, weakening TMC's dominance
+  if (JUP_AIMIM_SEATS.has(num)) {
+    const baseN = num * 200 + 7 * 50;
+    const isMuslimMajority = MUSLIM_MAJORITY_DISTRICTS.includes(district);
+    // JUP in Murshidabad, AIMIM in Malda — both are Muslim identity parties
+    const jupParty = district === "Malda" ? "AIMIM" : "JUP";
+    const jupFirst = MUSLIM_FIRST[seededRandInt(baseN * 103, 0, MUSLIM_FIRST.length - 1)];
+    const jupLast = MUSLIM_LAST[seededRandInt(baseN * 107, 0, MUSLIM_LAST.length - 1)];
+    allCandidates.push({
+      id: `CAND-${String(num).padStart(3, "0")}-${jupParty}`,
+      constituencyId: constId,
+      name: `${jupFirst} ${jupLast}`,
+      party: jupParty,
+      age: seededRandInt(baseN + 1, 32, 62),
+      education: EDUCATIONS[seededRandInt(baseN + 2, 1, 3)],
+      criminalCases: seededRandInt(baseN + 3, 0, 2),
+      isLocalResident: true,
+      termCount: 0,
+      oratoryScore: seededRandFloat(baseN + 8, 4.0, 7.0),
+      popularityIndex: seededRandFloat(baseN + 6, 3.5, 6.5),
+      developmentScore: seededRandFloat(baseN + 7, 2.5, 5.0),
+      antiIncumbencyRisk: 0.05,
+      demographicAlignmentScore: parseFloat((0.40 + seed(baseN + 10) * 0.40).toFixed(2)),
+    });
+  }
 });
 
 // Index by constituency ID for fast lookup
