@@ -892,21 +892,23 @@ function predictConstituency({ constituency, candidates, historicalData, demogra
     let allianceBonus = 0;
 
     // CPM+ISF Alliance bonus — seat-sharing consolidates Left+Muslim vote
+    // Kept modest: alliance failed in 2021 (0 CPM seats); only marginal benefit
     if (candidate.party === 'CPM') {
-      allianceBonus = muslimPct > 0.40 ? 10 : (muslimPct > 0.25 ? 6 : (muslimPct > 0.15 ? 4 : 2));
+      allianceBonus = muslimPct > 0.40 ? 4 : (muslimPct > 0.25 ? 2 : (muslimPct > 0.15 ? 1 : 0));
     } else if (candidate.party === 'ISF') {
-      allianceBonus = muslimPct > 0.40 ? 12 : (muslimPct > 0.25 ? 8 : 2);
+      allianceBonus = muslimPct > 0.40 ? 6 : (muslimPct > 0.25 ? 3 : 1);
     }
 
     // INC stronghold bonus — Baharampur/Murshidabad (Adhir Chowdhury belt)
     // Constituencies 63-70 in Murshidabad are Congress's strongest pockets
+    // Kept modest: INC won 0 seats in 2021 even in these areas
     const INC_STRONGHOLD_SEATS = new Set([63, 64, 65, 66, 67, 68, 69, 70]);
     const INC_INFLUENCE_SEATS = new Set([55, 56, 57, 58, 71, 72, 73, 74, 75, 76]);
     if (candidate.party === 'INC') {
-      if (INC_STRONGHOLD_SEATS.has(constNum)) allianceBonus += 14; // Adhir's core belt
-      else if (INC_INFLUENCE_SEATS.has(constNum)) allianceBonus += 7; // Extended Murshidabad influence
+      if (INC_STRONGHOLD_SEATS.has(constNum)) allianceBonus += 10; // Adhir's core belt
+      else if (INC_INFLUENCE_SEATS.has(constNum)) allianceBonus += 4; // Extended Murshidabad influence
       // Malda pockets — Congress has traditional presence
-      if (constNum >= 43 && constNum <= 54) allianceBonus += 5;
+      if (constNum >= 43 && constNum <= 54) allianceBonus += 3;
     }
 
     // CPM stronghold bonus — industrial belt, traditional Left pockets
@@ -923,8 +925,8 @@ function predictConstituency({ constituency, candidates, historicalData, demogra
       250, 251, 252,           // Purulia — tribal/Left base
     ]);
     if (candidate.party === 'CPM') {
-      if (CPM_STRONGHOLD_SEATS.has(constNum)) allianceBonus += 10;
-      else if (CPM_INFLUENCE_SEATS.has(constNum)) allianceBonus += 5;
+      if (CPM_STRONGHOLD_SEATS.has(constNum)) allianceBonus += 6;
+      else if (CPM_INFLUENCE_SEATS.has(constNum)) allianceBonus += 3;
     }
 
     // JUP+AIMIM alliance bonus in Muslim-majority Murshidabad/Malda seats
@@ -952,8 +954,9 @@ function predictConstituency({ constituency, candidates, historicalData, demogra
   scoredCandidates.sort((a, b) => b.totalScore - a.totalScore);
 
   // Convert scores to vote shares (softmax-like normalization)
-  // Temperature=15 produces realistic spreads (10-pt gap ≈ 1.9x ratio, 20-pt gap ≈ 3.8x ratio)
-  const expScores = scoredCandidates.map(c => Math.exp((c.totalScore - 40) / 15));
+  // Temperature=12 — concentrates vote share toward top parties (TMC/BJP) as in real WB elections
+  // where top-2 parties capture ~85% of vote. (10-pt gap ≈ 2.3x ratio, 20-pt gap ≈ 5.3x ratio)
+  const expScores = scoredCandidates.map(c => Math.exp((c.totalScore - 40) / 12));
   const sumExp = expScores.reduce((a, b) => a + b, 0);
 
   const allCandidates = scoredCandidates.map((c, i) => ({

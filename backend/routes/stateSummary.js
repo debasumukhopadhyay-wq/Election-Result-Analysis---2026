@@ -69,7 +69,7 @@ router.post('/', (req, res) => {
     }));
 
     // Re-run softmax with adjusted scores (same temperature as engine)
-    const expScores = adjusted.map(c => Math.exp((c.adjustedScore - 40) / 15));
+    const expScores = adjusted.map(c => Math.exp((c.adjustedScore - 40) / 12));
     const sumExp = expScores.reduce((a, b) => a + b, 0);
     const withShares = adjusted.map((c, i) => ({
       ...c,

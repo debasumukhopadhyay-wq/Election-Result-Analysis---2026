@@ -39,8 +39,8 @@ if (TOTAL_WEIGHT !== 100) console.warn(`Factor weights sum to ${TOTAL_WEIGHT}, e
 const PARTY_POPULARITY = {
   TMC:  50,   // Ruling party; strong org but 15-yr anti-incumbency eroding support
   BJP:  53,   // Main opposition; competitive in Hindu belt; 2021 vote share ~38%
-  CPM:  32,   // Weakened but some revival in industrial belt, N.Bengal, traditional pockets
-  INC:  26,   // Relevant in Murshidabad (Baharampur/Adhir belt), Malda pockets
+  CPM:  20,   // Left Front got ~5.6% in 2021; some revival but still marginal statewide
+  INC:  15,   // INC got ~2.9% in 2021; relevant only in Murshidabad/Malda pockets
   ISF:  22,   // Niche but growing; competitive in S24P, some Murshidabad Muslim pockets
   RSP:  16,   // Left Front ally, limited pockets
   CPI:  14,   // Left Front ally, negligible
@@ -55,8 +55,8 @@ const PARTY_POPULARITY = {
 const PARTY_CADRE_STRENGTH = {
   TMC:  62,   // Strongest org network; controls panchayats, municipalities; but fatigue setting in
   BJP:  56,   // Improved since 2019; strong in urban/Hindu belt; competitive cadre
-  CPM:  36,   // Reviving cadre base; traditional pockets in N.Bengal, industrial belt, Kolkata suburbs
-  INC:  22,   // Rebuilding in Murshidabad/Malda under Adhir Chowdhury's leadership
+  CPM:  24,   // Decimated since 2011; some cadre revival in industrial belt, N.Bengal
+  INC:  14,   // Thin ground presence outside Murshidabad/Malda; Adhir's belt only
   ISF:  24,   // Mosque/madrasa network in S24P and parts of Murshidabad; alliance with CPM helps
   RSP:  18,   // Left Front ally, limited
   CPI:  16,
@@ -85,8 +85,8 @@ const PARTY_FUNDING = {
 const PARTY_DIGITAL = {
   TMC:  70,
   BJP:  80,   // Strong national IT cell
-  CPM:  40,
-  INC:  35,
+  CPM:  25,
+  INC:  20,
   ISF:  25,
   JUP:  12,
   AIMIM: 22,
@@ -102,8 +102,8 @@ const PARTY_DIGITAL = {
 const ALLIANCE_BONUS = {
   TMC:  0,    // No formal alliance needed — dominates on own
   BJP:  0,    // No formal alliance in WB
-  CPM:  8,    // Left Front + ISF alliance; improved coordination vs 2021; seat-sharing helps
-  INC:  3,    // Limited alliance; runs independently in Murshidabad/Malda strongholds
+  CPM:  5,    // Left Front + ISF alliance; but alliance failed to deliver in 2021
+  INC:  1,    // No meaningful alliance; runs independently in limited pockets
   ISF:  7,    // Formal ally of CPM/Left Front; benefits from CPM cadre in seat-sharing arrangement
   JUP:  4,    // Informal JUP-AIMIM coordination in Murshidabad Muslim seats
   AIMIM: 4,   // Informal JUP-AIMIM coordination; Owaisi factor in Malda/Murshidabad
@@ -117,8 +117,8 @@ const ALLIANCE_BONUS = {
 const PARTY_MEDIA = {
   TMC:  68,   // Controls state media but national scrutiny rising
   BJP:  70,   // National media coverage
-  CPM:  35,
-  INC:  30,
+  CPM:  22,
+  INC:  18,
   ISF:  20,
   JUP:  15,
   AIMIM: 18,
